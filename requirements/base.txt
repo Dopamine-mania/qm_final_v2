@@ -1,0 +1,78 @@
+# 《心境流转》基础依赖
+# 核心Python包和工具
+
+# 深度学习框架
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+transformers>=4.30.0
+diffusers>=0.20.0
+accelerate>=0.20.0
+
+# 音频处理
+soundfile>=0.12.0
+librosa>=0.10.0
+audioread>=3.0.0
+resampy>=0.4.2
+
+# 科学计算
+numpy>=1.24.0
+scipy>=1.10.0
+scikit-learn>=1.3.0
+pandas>=2.0.0
+
+# 配置和数据处理
+pyyaml>=6.0
+jsonschema>=4.17.0
+tqdm>=4.65.0
+click>=8.1.0
+
+# 可视化和监控
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+wandb>=0.15.0
+
+# 工具库
+psutil>=5.9.0
+requests>=2.31.0
+aiohttp>=3.8.0
+python-multipart>=0.0.6
+
+# 图像处理
+Pillow>=10.0.0
+opencv-python>=4.8.0
+
+# 数学和信号处理
+sympy>=1.12
+fftw>=1.0.0  # 可选，用于快速傅里叶变换
+
+# 数据验证
+pydantic>=2.0.0
+marshmallow>=3.20.0
+
+# 异步处理
+asyncio>=3.4.3
+uvloop>=0.17.0  # 仅Linux/macOS
+
+# 缓存和存储
+redis>=4.6.0  # 可选
+h5py>=3.9.0
+
+# 测试框架
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+# 代码质量
+black>=23.7.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# 日志
+loguru>=0.7.0
+rich>=13.5.0
+
+# 环境管理
+python-dotenv>=1.0.0
