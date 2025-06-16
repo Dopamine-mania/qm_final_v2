@@ -183,7 +183,8 @@ class SleepVideoGenerator:
         frame = self.pattern_gen.apply_color_palette(pattern, color_palette)
         
         # 应用亮度调整（睡眠场景需要低亮度）
-        frame = frame * 0.3  # 降低整体亮度
+        # 为预览图片使用稍高的亮度，实际使用时应该更暗
+        frame = frame * 0.6  # 适中亮度便于预览
         
         # 转换为uint8
         frame = (frame * 255).astype(np.uint8)
@@ -249,6 +250,11 @@ def run_video_workshop():
     print("=" * 50)
     print(f"开始时间: {datetime.now().strftime('%H:%M:%S')}")
     
+    print("\n📌 注意：当前为预览模式")
+    print("  - 只生成5帧预览图片，不生成完整视频")
+    print("  - 亮度已调高便于查看（实际使用应更暗）")
+    print("  - 完整视频生成需要修改 preview_only=False")
+    
     # 创建生成器（使用较小分辨率以加快速度）
     generator = SleepVideoGenerator(width=960, height=540, fps=24)
     
@@ -305,6 +311,7 @@ def run_video_workshop():
         print(f"✅ 缩略图已保存: {thumbnail_path}")
         
         # 生成预览帧（不生成完整视频以节省时间）
+        print(f"  生成预览帧...")
         preview_frames = generator.generate_video(
             config['duration'],
             config['pattern'],
@@ -312,6 +319,7 @@ def run_video_workshop():
             None,
             preview_only=True
         )
+        print(f"  ✅ 生成了 {len(preview_frames)} 个预览帧")
         
         # 保存预览帧
         preview_dir = output_dir / f"{config['name'].replace(' ', '_')}_preview"
