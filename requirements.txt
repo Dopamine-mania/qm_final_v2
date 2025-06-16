@@ -1,0 +1,27 @@
+# 《心境流转》系统依赖
+
+# 基础科学计算
+numpy>=1.21.0
+matplotlib>=3.4.0
+scipy>=1.7.0
+
+# 深度学习
+torch>=2.0.0
+torchaudio>=2.0.0
+torchvision>=0.15.0
+
+# 音视频处理
+opencv-python>=4.5.0
+librosa>=0.9.0
+soundfile>=0.10.0
+
+# Web界面
+gradio>=4.0.0
+
+# 系统监控
+psutil>=5.8.0
+gputil>=1.4.0
+
+# 其他工具
+tqdm>=4.62.0
+pillow>=9.0.0
