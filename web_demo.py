@@ -13,7 +13,17 @@ import matplotlib.pyplot as plt
 import time
 
 # 导入核心功能
-from mood_flow_app import MoodFlowApp, TherapySession
+try:
+    from mood_flow_app import MoodFlowApp, TherapySession
+except ImportError as e:
+    print(f"导入错误: {e}")
+    print("正在尝试动态导入...")
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("mood_flow_app", "mood_flow_app.py")
+    mood_flow_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mood_flow_module)
+    MoodFlowApp = mood_flow_module.MoodFlowApp
+    TherapySession = mood_flow_module.TherapySession
 
 class WebDemo:
     def __init__(self):

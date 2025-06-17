@@ -19,9 +19,25 @@ from typing import Dict, List, Tuple, Optional
 sys.path.append(os.path.join(os.path.dirname(__file__), 'scripts'))
 
 # 导入核心模块
-from scripts.02_theory_models_demo import ISOModel, EmotionState, MusicModel
-from scripts.06_music_generation_workshop import SleepMusicGenerator
-from scripts.07_video_generation_workshop import SleepVideoGenerator
+import importlib.util
+import sys
+
+def import_from_file(file_path, module_name):
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+# 动态导入scripts模块
+theory_module = import_from_file("scripts/02_theory_models_demo.py", "theory_models")
+music_module = import_from_file("scripts/06_music_generation_workshop.py", "music_workshop")
+video_module = import_from_file("scripts/07_video_generation_workshop.py", "video_workshop")
+
+ISOModel = theory_module.ISOModel
+EmotionState = theory_module.EmotionState
+MusicModel = theory_module.MusicModel
+SleepMusicGenerator = music_module.SleepMusicGenerator
+SleepVideoGenerator = video_module.SleepVideoGenerator
 
 @dataclass
 class TherapySession:
