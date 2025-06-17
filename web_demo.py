@@ -33,6 +33,16 @@ class WebDemo:
         # 设置matplotlib字体为英文，避免中文显示问题
         plt.rcParams['font.family'] = 'DejaVu Sans'
         plt.rcParams['axes.unicode_minus'] = False
+    
+    def safe_progress_update(self, progress, value, desc=""):
+        """安全地更新进度条，避免Gradio版本兼容性问题"""
+        try:
+            if progress is not None:
+                progress(value, desc=desc)
+        except Exception as e:
+            # 忽略进度条更新错误，不影响主要功能
+            print(f"进度条更新警告: {str(e)}")
+            pass
         
     def process_voice_input(self, audio_file):
         """处理语音输入转换为文字"""
@@ -101,7 +111,7 @@ class WebDemo:
         try:
             # 根据模式设置时长
             duration = 5 if demo_mode else 20
-            progress(0.1, desc="Starting emotion analysis...")
+            self.safe_progress_update(progress, 0.1, "Starting emotion analysis...")
             
             # 根据播放模式决定是否生成完整视频
             create_videos = (playback_mode == "🎵+🎬 音画结合")
@@ -110,7 +120,7 @@ class WebDemo:
             session = self.app.run_therapy_session(text_input, duration=duration, create_full_videos=create_videos, progress_callback=progress)
             self.current_session = session
             
-            progress(0.9, desc="Finalizing outputs...")
+            self.safe_progress_update(progress, 0.9, "Finalizing outputs...")
             
             # 读取生成的文件
             report_image = session.music_file.replace("_therapy_music.wav", "_report.png")
@@ -153,7 +163,7 @@ class WebDemo:
 • 🎬 Videos: {len(session.video_files)} stage previews
 """
             
-            progress(1.0, desc="Complete!")
+            self.safe_progress_update(progress, 1.0, "Complete!")
             return combined_output, video_output, report_image, self.create_simple_visualization(), status
             
         except Exception as e:

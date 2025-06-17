@@ -79,6 +79,15 @@ class MoodFlowApp:
         
         print("✅ 系统初始化完成！\n")
     
+    def safe_progress_update(self, progress_callback, value, desc=""):
+        """Safely update progress bar to avoid Gradio version compatibility issues"""
+        try:
+            if progress_callback is not None:
+                progress_callback(value, desc=desc)
+        except Exception as e:
+            print(f"Progress update warning: {str(e)}")
+            pass
+    
     def analyze_emotion_from_text(self, text: str) -> EmotionState:
         """从文本分析情绪状态"""
         print("🔍 分析情绪状态...")
@@ -431,23 +440,19 @@ class MoodFlowApp:
         print(f"参数: duration={duration}, create_full_videos={create_full_videos}")
         
         # 1. 情绪分析
-        if progress_callback:
-            progress_callback(0.2, desc="Analyzing emotions...")
+        self.safe_progress_update(progress_callback, 0.2, "Analyzing emotions...")
         detected_emotion = self.analyze_emotion_from_text(user_input)
         
         # 2. 规划治疗阶段
-        if progress_callback:
-            progress_callback(0.3, desc="Planning therapy stages...")
+        self.safe_progress_update(progress_callback, 0.3, "Planning therapy stages...")
         iso_stages = self.plan_therapy_stages(detected_emotion, duration)
         
         # 3. 生成音乐
-        if progress_callback:
-            progress_callback(0.4, desc="Generating therapy music...")
+        self.safe_progress_update(progress_callback, 0.4, "Generating therapy music...")
         music_file = self.generate_stage_music(iso_stages, session_name)
         
         # 4. 生成视频
-        if progress_callback:
-            progress_callback(0.7, desc="Creating visual guidance...")
+        self.safe_progress_update(progress_callback, 0.7, "Creating visual guidance...")
         video_files = self.generate_stage_videos(iso_stages, session_name, create_full_videos)
         
         # 创建会话对象
