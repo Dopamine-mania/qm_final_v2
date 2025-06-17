@@ -104,7 +104,7 @@ class WebDemo:
             progress(0.1, desc="Starting emotion analysis...")
             
             # 根据播放模式决定是否生成完整视频
-            create_videos = (playback_mode == "audio_video_combined")
+            create_videos = (playback_mode == "🎵+🎬 音画结合")
             
             # 运行治疗会话
             session = self.app.run_therapy_session(text_input, duration=duration, create_full_videos=create_videos, progress_callback=progress)
@@ -116,17 +116,17 @@ class WebDemo:
             report_image = session.music_file.replace("_therapy_music.wav", "_report.png")
             
             # 根据播放模式处理输出
-            if playback_mode == "audio_only":
+            if playback_mode == "🎵 仅音乐":
                 video_output = None
                 combined_output = session.music_file
-            else:  # audio_video_combined
+            else:  # 🎵+🎬 音画结合
                 # 创建音视频结合版本 (当前显示预览图)
                 combined_output = session.music_file
                 video_output = session.video_files[0] if session.video_files else None
             
             # 生成状态信息
             mode_text = "Demo (5 min)" if demo_mode else "Full (20 min)"
-            playback_text = "Audio Only" if playback_mode == "audio_only" else "Audio + Video"
+            playback_text = "Audio Only" if playback_mode == "🎵 仅音乐" else "Audio + Video"
             status_parts = [f"✅ Therapy plan generated! ({mode_text}, {playback_text})"]
             if voice_status:
                 status_parts.append(f"\n🎤 {voice_status}")
@@ -263,10 +263,9 @@ def create_interface():
                     )
                     
                 playback_mode = gr.Radio(
-                    choices=["audio_only", "audio_video_combined"],
-                    labels=["🎵 仅音乐", "🎵+🎬 音画结合"],
+                    choices=["🎵 仅音乐", "🎵+🎬 音画结合"],
                     label="播放模式",
-                    value="audio_only"
+                    value="🎵 仅音乐"
                 )
                 
                 submit_btn = gr.Button("🚀 生成治疗方案", variant="primary", size="lg")
