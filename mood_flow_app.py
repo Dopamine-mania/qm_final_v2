@@ -115,15 +115,12 @@ class MoodFlowApp:
         
         return EmotionState(valence=valence, arousal=arousal)
     
-    def plan_therapy_stages(self, current_emotion: EmotionState) -> List[Dict]:
+    def plan_therapy_stages(self, current_emotion: EmotionState, duration: int = 20) -> List[Dict]:
         """规划三阶段治疗"""
         print("\n📋 规划治疗方案...")
         
         # 目标情绪：平静入睡状态
         target_emotion = EmotionState(valence=0.3, arousal=-0.8)
-        
-        # 治疗时长（分钟）
-        duration = 20
         
         # 使用ISO模型规划
         stages = self.iso_model.plan_stages(current_emotion, target_emotion, duration)
@@ -248,7 +245,7 @@ class MoodFlowApp:
         
         return track
     
-    def generate_stage_videos(self, stages: List[Dict], session_name: str) -> List[str]:
+    def generate_stage_videos(self, stages: List[Dict], session_name: str, create_full_videos: bool = False) -> List[str]:
         """为各阶段生成视频"""
         print("\n🎬 生成治疗视频...")
         
@@ -266,25 +263,37 @@ class MoodFlowApp:
             
             print(f"  第{i+1}阶段: {pattern} - {palette}")
             
-            # 生成预览帧
-            frames = self.video_generator.generate_video(
-                duration_seconds=stage['duration'] * 60,
-                pattern_type=pattern,
-                color_palette=palette,
-                output_path=None,
-                preview_only=True
-            )
-            
-            # 保存关键帧
             stage_dir = self.output_dir / f"{session_name}_stage_{i+1}"
             stage_dir.mkdir(exist_ok=True)
             
-            # 保存第一帧作为预览
-            if frames:
-                preview_file = stage_dir / "preview.png"
-                plt.imsave(str(preview_file), frames[0])
-                video_files.append(str(preview_file))
-                print(f"  ✅ 保存预览: {preview_file.name}")
+            if create_full_videos:
+                # 生成完整视频
+                video_file = stage_dir / f"stage_{i+1}_video.mp4"
+                frames = self.video_generator.generate_video(
+                    duration_seconds=stage['duration'] * 60,
+                    pattern_type=pattern,
+                    color_palette=palette,
+                    output_path=str(video_file),
+                    preview_only=False
+                )
+                video_files.append(str(video_file))
+                print(f"  ✅ 保存视频: {video_file.name}")
+            else:
+                # 生成预览帧
+                frames = self.video_generator.generate_video(
+                    duration_seconds=stage['duration'] * 60,
+                    pattern_type=pattern,
+                    color_palette=palette,
+                    output_path=None,
+                    preview_only=True
+                )
+                
+                # 保存第一帧作为预览
+                if frames:
+                    preview_file = stage_dir / "preview.png"
+                    plt.imsave(str(preview_file), frames[0])
+                    video_files.append(str(preview_file))
+                    print(f"  ✅ 保存预览: {preview_file.name}")
         
         return video_files
     
@@ -311,8 +320,8 @@ class MoodFlowApp:
         arousals = [session.detected_emotion.arousal] + [s['arousal'] for s in stages_data]
         
         ax.plot(valences, arousals, 'o-', linewidth=2, markersize=8)
-        ax.scatter(valences[0], arousals[0], c='red', s=100, label='起始情绪')
-        ax.scatter(valences[-1], arousals[-1], c='green', s=100, label='目标情绪')
+        ax.scatter(valences[0], arousals[0], c='red', s=100, label='Initial Emotion')
+        ax.scatter(valences[-1], arousals[-1], c='green', s=100, label='Target Emotion')
         
         # 添加阶段标注
         for i, stage in enumerate(stages_data):
@@ -323,9 +332,9 @@ class MoodFlowApp:
         ax.set_ylim(-1, 1)
         ax.axhline(y=0, color='k', linestyle='--', alpha=0.3)
         ax.axvline(x=0, color='k', linestyle='--', alpha=0.3)
-        ax.set_xlabel('效价 Valence')
-        ax.set_ylabel('唤醒 Arousal')
-        ax.set_title('情绪轨迹规划')
+        ax.set_xlabel('Valence')
+        ax.set_ylabel('Arousal')
+        ax.set_title('Emotion Trajectory Planning')
         ax.legend()
         ax.grid(True, alpha=0.3)
         
@@ -335,8 +344,20 @@ class MoodFlowApp:
         stage_durations = [s['duration'] for s in stages_data]
         colors = ['#ff9999', '#66b3ff', '#99ff99']
         
-        ax.pie(stage_durations, labels=stage_names, colors=colors, autopct='%1.0f%%')
-        ax.set_title('治疗阶段时间分配')
+        # 将stage_names转换为英文
+        stage_names_en = []
+        for name in stage_names:
+            if '同步化' in name:
+                stage_names_en.append('Synchronization')
+            elif '引导化' in name:
+                stage_names_en.append('Guidance')
+            elif '巩固化' in name:
+                stage_names_en.append('Consolidation')
+            else:
+                stage_names_en.append(name)
+        
+        ax.pie(stage_durations, labels=stage_names_en, colors=colors, autopct='%1.0f%%')
+        ax.set_title('Therapy Stage Duration Distribution')
         
         # 3. BPM变化曲线
         ax = axes[1, 0]
@@ -353,9 +374,9 @@ class MoodFlowApp:
         
         ax.plot(time_points, bpm_values, 'b-', linewidth=2)
         ax.fill_between(time_points, bpm_values, alpha=0.3)
-        ax.set_xlabel('时间 (分钟)')
+        ax.set_xlabel('Time (minutes)')
         ax.set_ylabel('BPM')
-        ax.set_title('音乐节奏变化')
+        ax.set_title('Music Rhythm Changes')
         ax.grid(True, alpha=0.3)
         
         # 4. 治疗信息
@@ -375,7 +396,7 @@ class MoodFlowApp:
 生成时间: {session.start_time.strftime('%Y-%m-%d %H:%M:%S')}
         """
         
-        ax.text(0.1, 0.9, "治疗会话信息", fontsize=14, fontweight='bold', 
+        ax.text(0.1, 0.9, "Therapy Session Info", fontsize=14, fontweight='bold', 
                 transform=ax.transAxes)
         ax.text(0.1, 0.1, info_text, fontsize=10, transform=ax.transAxes,
                 verticalalignment='bottom', fontfamily='monospace')
@@ -391,7 +412,7 @@ class MoodFlowApp:
         
         return str(report_file)
     
-    def run_therapy_session(self, user_input: str) -> TherapySession:
+    def run_therapy_session(self, user_input: str, duration: int = 20, create_full_videos: bool = False, progress_callback=None) -> TherapySession:
         """运行完整的治疗会话"""
         start_time = datetime.now()
         session_name = f"session_{start_time.strftime('%Y%m%d_%H%M%S')}"
@@ -401,16 +422,24 @@ class MoodFlowApp:
         print(f"{'='*60}")
         
         # 1. 情绪分析
+        if progress_callback:
+            progress_callback(0.2, desc="Analyzing emotions...")
         detected_emotion = self.analyze_emotion_from_text(user_input)
         
         # 2. 规划治疗阶段
-        iso_stages = self.plan_therapy_stages(detected_emotion)
+        if progress_callback:
+            progress_callback(0.3, desc="Planning therapy stages...")
+        iso_stages = self.plan_therapy_stages(detected_emotion, duration)
         
         # 3. 生成音乐
+        if progress_callback:
+            progress_callback(0.4, desc="Generating therapy music...")
         music_file = self.generate_stage_music(iso_stages, session_name)
         
         # 4. 生成视频
-        video_files = self.generate_stage_videos(iso_stages, session_name)
+        if progress_callback:
+            progress_callback(0.7, desc="Creating visual guidance...")
+        video_files = self.generate_stage_videos(iso_stages, session_name, create_full_videos)
         
         # 创建会话对象
         session = TherapySession(

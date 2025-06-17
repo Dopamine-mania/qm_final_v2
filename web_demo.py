@@ -30,6 +30,9 @@ class WebDemo:
     def __init__(self):
         self.app = MoodFlowApp()
         self.current_session = None
+        # 设置matplotlib字体为英文，避免中文显示问题
+        plt.rcParams['font.family'] = 'DejaVu Sans'
+        plt.rcParams['axes.unicode_minus'] = False
         
     def process_voice_input(self, audio_file):
         """处理语音输入转换为文字"""
@@ -68,7 +71,7 @@ class WebDemo:
         except Exception as e:
             return "", f"❌ 语音处理出错: {str(e)}"
     
-    def process_input(self, text_input, audio_input, emotion_type=None):
+    def process_input(self, text_input, audio_input, emotion_type=None, demo_mode=True, playback_mode="audio_only", progress=gr.Progress()):
         """处理用户输入并生成治疗方案"""
         # 处理语音输入
         voice_text = ""
@@ -96,46 +99,62 @@ class WebDemo:
             return None, None, None, None, error_msg
         
         try:
+            # 根据模式设置时长
+            duration = 5 if demo_mode else 20
+            progress(0.1, desc="Starting emotion analysis...")
+            
+            # 根据播放模式决定是否生成完整视频
+            create_videos = (playback_mode == "audio_video_combined")
+            
             # 运行治疗会话
-            session = self.app.run_therapy_session(text_input)
+            session = self.app.run_therapy_session(text_input, duration=duration, create_full_videos=create_videos, progress_callback=progress)
             self.current_session = session
+            
+            progress(0.9, desc="Finalizing outputs...")
             
             # 读取生成的文件
             report_image = session.music_file.replace("_therapy_music.wav", "_report.png")
             
-            # 获取视频预览文件
-            video_preview = None
-            if session.video_files:
-                video_preview = session.video_files[0]  # 显示第一个阶段的预览
+            # 根据播放模式处理输出
+            if playback_mode == "audio_only":
+                video_output = None
+                combined_output = session.music_file
+            else:  # audio_video_combined
+                # 创建音视频结合版本 (当前显示预览图)
+                combined_output = session.music_file
+                video_output = session.video_files[0] if session.video_files else None
             
             # 生成状态信息
-            status_parts = ["✅ 治疗方案生成完成！"]
+            mode_text = "Demo (5 min)" if demo_mode else "Full (20 min)"
+            playback_text = "Audio Only" if playback_mode == "audio_only" else "Audio + Video"
+            status_parts = [f"✅ Therapy plan generated! ({mode_text}, {playback_text})"]
             if voice_status:
                 status_parts.append(f"\n🎤 {voice_status}")
             
             status = f"""
 {status_parts[0]}{status_parts[1] if len(status_parts) > 1 else ''}
 
-📊 检测到的情绪:
-• 效价 (Valence): {session.detected_emotion.valence:.2f}
-• 唤醒 (Arousal): {session.detected_emotion.arousal:.2f}
+📊 Detected Emotion:
+• Valence: {session.detected_emotion.valence:.2f}
+• Arousal: {session.detected_emotion.arousal:.2f}
 
-🎵 音乐治疗:
-• 总时长: {sum(s['duration'] for s in session.iso_stages)} 分钟
-• 三阶段: {' → '.join(s['stage'].value for s in session.iso_stages)}
+🎵 Music Therapy:
+• Total Duration: {sum(s['duration'] for s in session.iso_stages)} minutes
+• 3 Stages: {' → '.join(s['stage'].value for s in session.iso_stages)}
 
-💡 使用建议:
-1. 找一个安静舒适的环境
-2. 调暗灯光，放松身体
-3. 戴上耳机聆听音乐
-4. 跟随视觉引导调整呼吸
+💡 Usage Guide:
+1. Find a quiet and comfortable environment
+2. Dim the lights and relax your body
+3. Put on headphones to listen to the music
+4. Follow the visual guidance to adjust breathing
 
-📁 文件生成:
-• 🎵 音乐: {Path(session.music_file).name}
-• 🎬 视频: {len(session.video_files)} 个阶段预览
+📁 Generated Files:
+• 🎵 Music: {Path(session.music_file).name}
+• 🎬 Videos: {len(session.video_files)} stage previews
 """
             
-            return session.music_file, video_preview, report_image, self.create_simple_visualization(), status
+            progress(1.0, desc="Complete!")
+            return combined_output, video_output, report_image, self.create_simple_visualization(), status
             
         except Exception as e:
             error_msg = f"❌ 处理出错: {str(e)}"
@@ -165,17 +184,25 @@ class WebDemo:
             times.append(current_time)
         
         # 绘制曲线
-        ax.plot(times, valences, 'b-o', linewidth=2, markersize=8, label='效价 (Valence)')
-        ax.plot(times, arousals, 'r-o', linewidth=2, markersize=8, label='唤醒 (Arousal)')
+        ax.plot(times, valences, 'b-o', linewidth=2, markersize=8, label='Valence')
+        ax.plot(times, arousals, 'r-o', linewidth=2, markersize=8, label='Arousal')
         
         # 添加阶段标注
         for i, (t, stage) in enumerate(zip(times[1:], stages[1:])):
             ax.axvline(x=t, color='gray', linestyle='--', alpha=0.3)
-            ax.text(t-1, 0.9, stage, rotation=45, fontsize=10)
+            # 将中文阶段名转换为英文
+            stage_en = stage
+            if '同步化' in stage:
+                stage_en = 'Sync'
+            elif '引导化' in stage:
+                stage_en = 'Guide'
+            elif '巩固化' in stage:
+                stage_en = 'Consolidate'
+            ax.text(t-1, 0.9, stage_en, rotation=45, fontsize=10)
         
-        ax.set_xlabel('时间 (分钟)')
-        ax.set_ylabel('情绪值')
-        ax.set_title('ISO三阶段情绪引导轨迹')
+        ax.set_xlabel('Time (minutes)')
+        ax.set_ylabel('Emotion Value')
+        ax.set_title('ISO 3-Stage Emotion Guidance Trajectory')
         ax.legend()
         ax.grid(True, alpha=0.3)
         ax.set_ylim(-1, 1)
@@ -226,6 +253,20 @@ def create_interface():
                     choices=["焦虑", "压力", "失眠", "抑郁", "疲惫"],
                     label="预设情绪",
                     value=None
+                )
+                
+                gr.Markdown("### ⚙️ 系统设置:")
+                with gr.Row():
+                    demo_mode_toggle = gr.Checkbox(
+                        label="演示模式 (5分钟快速体验)",
+                        value=True
+                    )
+                    
+                playback_mode = gr.Radio(
+                    choices=["audio_only", "audio_video_combined"],
+                    labels=["🎵 仅音乐", "🎵+🎬 音画结合"],
+                    label="播放模式",
+                    value="audio_only"
                 )
                 
                 submit_btn = gr.Button("🚀 生成治疗方案", variant="primary", size="lg")
@@ -289,7 +330,7 @@ def create_interface():
         # 绑定事件
         submit_btn.click(
             fn=demo.process_input,
-            inputs=[text_input, audio_input, emotion_buttons],
+            inputs=[text_input, audio_input, emotion_buttons, demo_mode_toggle, playback_mode],
             outputs=[audio_output, video_output, report_output, viz_output, status_output]
         )
         
