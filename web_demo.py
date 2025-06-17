@@ -125,14 +125,47 @@ class WebDemo:
             # 读取生成的文件
             report_image = session.music_file.replace("_therapy_music.wav", "_report.png")
             
-            # 根据播放模式处理输出
+            # 检查报告文件是否存在
+            if not os.path.exists(report_image):
+                print(f"⚠️ 报告文件不存在: {report_image}")
+                # 手动触发报告生成
+                report_image = self.app.create_visualization(session)
+            
+            # 视觉引导预览 - 总是显示第一个阶段的预览
+            video_output = None
+            print(f"🔍 调试信息 - 视频文件列表: {session.video_files}")
+            if session.video_files and len(session.video_files) > 0:
+                video_preview_path = session.video_files[0]
+                print(f"🔍 调试信息 - 检查视频预览路径: {video_preview_path}")
+                if os.path.exists(video_preview_path):
+                    video_output = video_preview_path
+                    print(f"✅ 视频预览文件存在: {video_preview_path}")
+                else:
+                    print(f"⚠️ 视频预览文件不存在: {video_preview_path}")
+                    # 尝试列出目录内容
+                    try:
+                        video_dir = os.path.dirname(video_preview_path)
+                        if os.path.exists(video_dir):
+                            files = os.listdir(video_dir)
+                            print(f"🔍 目录 {video_dir} 内容: {files}")
+                    except Exception as e:
+                        print(f"⚠️ 无法列出目录内容: {e}")
+            else:
+                print("⚠️ 没有生成视频文件")
+            
+            # 检查报告文件
+            print(f"🔍 调试信息 - 报告文件路径: {report_image}")
+            if os.path.exists(report_image):
+                print(f"✅ 报告文件存在: {report_image}")
+            else:
+                print(f"⚠️ 报告文件不存在: {report_image}")
+            
+            # 根据播放模式处理音频输出
             if playback_mode == "🎵 仅音乐":
-                video_output = None
                 combined_output = session.music_file
             else:  # 🎵+🎬 音画结合
-                # 创建音视频结合版本 (当前显示预览图)
+                # 音画结合模式，使用相同的音频文件
                 combined_output = session.music_file
-                video_output = session.video_files[0] if session.video_files and len(session.video_files) > 0 else None
             
             # 生成状态信息
             mode_text = "Demo (5 min)" if demo_mode else "Full (20 min)"
@@ -255,10 +288,18 @@ class WebDemo:
             
             # 保存图片
             viz_path = Path("outputs/demo_sessions") / "current_visualization.png"
+            # 确保目录存在
+            viz_path.parent.mkdir(parents=True, exist_ok=True)
             plt.savefig(viz_path)
             plt.close()
             
-            return str(viz_path)
+            # 验证文件是否成功保存
+            if viz_path.exists():
+                print(f"✅ 可视化图表保存成功: {viz_path}")
+                return str(viz_path)
+            else:
+                print(f"❌ 可视化图表保存失败: {viz_path}")
+                return None
         
         except Exception as e:
             import traceback

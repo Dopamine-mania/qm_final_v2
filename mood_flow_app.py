@@ -308,9 +308,16 @@ class MoodFlowApp:
                 # 保存第一帧作为预览
                 if frames:
                     preview_file = stage_dir / "preview.png"
+                    # 确保目录存在
+                    preview_file.parent.mkdir(parents=True, exist_ok=True)
+                    # 保存图片
                     plt.imsave(str(preview_file), frames[0])
-                    video_files.append(str(preview_file))
-                    print(f"  ✅ 保存预览: {preview_file.name}")
+                    # 验证文件是否成功保存
+                    if preview_file.exists():
+                        video_files.append(str(preview_file))
+                        print(f"  ✅ 保存预览: {preview_file.name} (路径: {preview_file})")
+                    else:
+                        print(f"  ❌ 预览保存失败: {preview_file}")
         
         return video_files
     
@@ -422,10 +429,16 @@ class MoodFlowApp:
         
         # 保存图表
         report_file = self.output_dir / f"{Path(session.music_file).stem}_report.png"
+        # 确保输出目录存在
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         plt.savefig(report_file, dpi=150, bbox_inches='tight')
         plt.close()
         
-        print(f"✅ 报告生成完成: {report_file.name}")
+        # 验证文件是否成功保存
+        if report_file.exists():
+            print(f"✅ 报告生成完成: {report_file.name} (路径: {report_file})")
+        else:
+            print(f"❌ 报告生成失败: {report_file}")
         
         return str(report_file)
     
