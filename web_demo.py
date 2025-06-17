@@ -11,6 +11,7 @@ from pathlib import Path
 from datetime import datetime
 import matplotlib.pyplot as plt
 import time
+import os
 
 # 导入核心功能
 try:
@@ -30,8 +31,53 @@ class WebDemo:
         self.app = MoodFlowApp()
         self.current_session = None
         
-    def process_input(self, text_input, emotion_type=None):
+    def process_voice_input(self, audio_file):
+        """处理语音输入转换为文字"""
+        if audio_file is None:
+            return "", "请录制或上传音频文件"
+        
+        try:
+            # 检查音频文件大小和格式
+            file_path = Path(audio_file)
+            if not file_path.exists() or file_path.stat().st_size == 0:
+                return "", "❌ 音频文件无效或为空"
+            
+            # 简化版语音处理：目前使用示例文本
+            # 在实际部署时可以集成专业的语音识别服务
+            sample_texts = [
+                "今天工作压力很大，躺在床上翻来覆去睡不着，总是想着明天的会议",
+                "最近总是感到焦虑，晚上很难入睡，即使睡着了也容易醒",
+                "心情有些低落，感觉很疲惫但就是睡不着，对什么都提不起兴趣",
+                "有点兴奋睡不着，脑子里想着很多事情，越想越清醒",
+                "身心俱疲，但躺下后大脑还是很活跃，总是胡思乱想"
+            ]
+            
+            import random
+            import hashlib
+            
+            # 基于文件内容生成一致的示例文本
+            with open(audio_file, 'rb') as f:
+                file_hash = hashlib.md5(f.read()).hexdigest()
+            
+            # 使用文件哈希选择示例文本，确保同一文件返回相同结果
+            text_index = int(file_hash[:8], 16) % len(sample_texts)
+            selected_text = sample_texts[text_index]
+            
+            return selected_text, f"🎤 语音已处理 (演示模式): {selected_text}"
+                
+        except Exception as e:
+            return "", f"❌ 语音处理出错: {str(e)}"
+    
+    def process_input(self, text_input, audio_input, emotion_type=None):
         """处理用户输入并生成治疗方案"""
+        # 处理语音输入
+        voice_text = ""
+        voice_status = ""
+        if audio_input is not None:
+            voice_text, voice_status = self.process_voice_input(audio_input)
+            if voice_text:
+                text_input = voice_text if not text_input else f"{text_input} {voice_text}"
+        
         if not text_input and emotion_type:
             # 如果没有文字输入，使用预设情绪
             emotion_templates = {
@@ -44,7 +90,10 @@ class WebDemo:
             text_input = emotion_templates.get(emotion_type, "我睡不着")
         
         if not text_input:
-            return None, None, None, "请输入您的感受或选择一种情绪状态"
+            error_msg = "请通过以下任一方式提供输入:\n• 在文字框中描述您的感受\n• 录制语音描述\n• 选择预设情绪类型"
+            if voice_status:
+                error_msg = f"{voice_status}\n\n{error_msg}"
+            return None, None, None, None, error_msg
         
         try:
             # 运行治疗会话
@@ -54,9 +103,18 @@ class WebDemo:
             # 读取生成的文件
             report_image = session.music_file.replace("_therapy_music.wav", "_report.png")
             
+            # 获取视频预览文件
+            video_preview = None
+            if session.video_files:
+                video_preview = session.video_files[0]  # 显示第一个阶段的预览
+            
             # 生成状态信息
+            status_parts = ["✅ 治疗方案生成完成！"]
+            if voice_status:
+                status_parts.append(f"\n🎤 {voice_status}")
+            
             status = f"""
-✅ 治疗方案生成完成！
+{status_parts[0]}{status_parts[1] if len(status_parts) > 1 else ''}
 
 📊 检测到的情绪:
 • 效价 (Valence): {session.detected_emotion.valence:.2f}
@@ -71,12 +129,19 @@ class WebDemo:
 2. 调暗灯光，放松身体
 3. 戴上耳机聆听音乐
 4. 跟随视觉引导调整呼吸
+
+📁 文件生成:
+• 🎵 音乐: {Path(session.music_file).name}
+• 🎬 视频: {len(session.video_files)} 个阶段预览
 """
             
-            return session.music_file, report_image, self.create_simple_visualization(), status
+            return session.music_file, video_preview, report_image, self.create_simple_visualization(), status
             
         except Exception as e:
-            return None, None, None, f"❌ 处理出错: {str(e)}"
+            error_msg = f"❌ 处理出错: {str(e)}"
+            if voice_status:
+                error_msg = f"{voice_status}\n\n{error_msg}"
+            return None, None, None, None, error_msg
     
     def create_simple_visualization(self):
         """创建简单的可视化"""
@@ -137,53 +202,74 @@ def create_interface():
         
         with gr.Row():
             with gr.Column(scale=1):
-                gr.Markdown("### 📝 描述您的感受")
+                gr.Markdown("### 📝 输入您的感受")
                 
-                text_input = gr.Textbox(
-                    label="文字输入",
-                    placeholder="例如：今天工作压力很大，躺在床上翻来覆去睡不着...",
-                    lines=3
-                )
+                # 选项卡：文字或语音输入
+                with gr.Tabs():
+                    with gr.TabItem("💬 文字输入"):
+                        text_input = gr.Textbox(
+                            label="描述您的感受",
+                            placeholder="例如：今天工作压力很大，躺在床上翻来覆去睡不着...",
+                            lines=4
+                        )
+                    
+                    with gr.TabItem("🎤 语音输入"):
+                        audio_input = gr.Audio(
+                            label="录制或上传语音",
+                            type="filepath",
+                            format="wav"
+                        )
+                        gr.Markdown("💡 **提示**: 录制后请点击'生成治疗方案'按钮")
                 
-                gr.Markdown("或选择情绪类型:")
+                gr.Markdown("### 🎯 或快速选择情绪:")
                 emotion_buttons = gr.Radio(
                     choices=["焦虑", "压力", "失眠", "抑郁", "疲惫"],
-                    label="快速选择",
+                    label="预设情绪",
                     value=None
                 )
                 
-                submit_btn = gr.Button("🚀 生成治疗方案", variant="primary")
+                submit_btn = gr.Button("🚀 生成治疗方案", variant="primary", size="lg")
                 
                 gr.Markdown("""
-                ### 💡 使用说明
-                1. 描述您当前的情绪感受
-                2. 点击生成治疗方案
-                3. 聆听生成的音乐
-                4. 查看情绪引导轨迹
+                ### 💡 使用指南
+                1. **输入方式**：选择文字或语音描述
+                2. **生成方案**：点击按钮开始处理
+                3. **聆听音乐**：播放个性化治疗音乐
+                4. **观看视频**：查看配套的视觉引导
+                5. **查看报告**：了解情绪分析和治疗轨迹
                 """)
                 
             with gr.Column(scale=2):
-                gr.Markdown("### 🎯 治疗方案")
+                gr.Markdown("### 🎯 个性化治疗方案")
                 
                 status_output = gr.Textbox(
-                    label="状态信息",
-                    lines=10,
+                    label="📋 处理状态",
+                    lines=12,
                     interactive=False
                 )
                 
-                audio_output = gr.Audio(
-                    label="🎵 治疗音乐",
-                    type="filepath"
-                )
+                with gr.Row():
+                    with gr.Column():
+                        audio_output = gr.Audio(
+                            label="🎵 治疗音乐 (20分钟三阶段)",
+                            type="filepath",
+                            autoplay=False
+                        )
+                    
+                    with gr.Column():
+                        video_output = gr.Image(
+                            label="🎬 视觉引导预览",
+                            type="filepath"
+                        )
                 
                 with gr.Row():
                     report_output = gr.Image(
-                        label="📊 详细报告",
+                        label="📊 详细分析报告",
                         type="filepath"
                     )
                     
                     viz_output = gr.Image(
-                        label="📈 情绪轨迹",
+                        label="📈 情绪轨迹图",
                         type="filepath"
                     )
         
@@ -203,14 +289,8 @@ def create_interface():
         # 绑定事件
         submit_btn.click(
             fn=demo.process_input,
-            inputs=[text_input, emotion_buttons],
-            outputs=[audio_output, report_output, viz_output, status_output]
-        )
-        
-        emotion_buttons.change(
-            fn=lambda x: x,
-            inputs=[emotion_buttons],
-            outputs=[]
+            inputs=[text_input, audio_input, emotion_buttons],
+            outputs=[audio_output, video_output, report_output, viz_output, status_output]
         )
         
     return interface
