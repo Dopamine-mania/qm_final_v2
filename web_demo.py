@@ -439,6 +439,18 @@ def create_interface():
         
     return interface
 
+def find_free_port(start_port=7860, max_port=7900):
+    """查找可用端口"""
+    import socket
+    for port in range(start_port, max_port):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('', port))
+                return port
+        except OSError:
+            continue
+    return None
+
 def main():
     """主函数"""
     print("启动Web演示界面...")
@@ -446,15 +458,25 @@ def main():
     # 创建输出目录
     Path("outputs/demo_sessions").mkdir(parents=True, exist_ok=True)
     
+    # 查找可用端口
+    port = find_free_port()
+    if port is None:
+        print("❌ 无法找到可用端口 (7860-7900)")
+        print("请手动终止占用端口的进程或指定其他端口")
+        return
+    
+    print(f"🚀 使用端口: {port}")
+    
     # 创建并启动界面
     interface = create_interface()
     
     # 启动服务
     interface.launch(
         server_name="0.0.0.0",  # 允许外部访问
-        server_port=7860,
+        server_port=port,
         share=True,  # 创建公共链接
-        inbrowser=True  # 自动打开浏览器
+        inbrowser=True,  # 自动打开浏览器
+        show_error=True
     )
 
 if __name__ == "__main__":
