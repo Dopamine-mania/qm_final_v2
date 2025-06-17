@@ -131,25 +131,38 @@ class WebDemo:
                 # 手动触发报告生成
                 report_image = self.app.create_visualization(session)
             
-            # 视觉引导预览 - 总是显示第一个阶段的预览
+            # 视觉引导预览 - 查找PNG预览图而不是MP4视频
             video_output = None
             print(f"🔍 调试信息 - 视频文件列表: {session.video_files}")
             if session.video_files and len(session.video_files) > 0:
-                video_preview_path = session.video_files[0]
-                print(f"🔍 调试信息 - 检查视频预览路径: {video_preview_path}")
-                if os.path.exists(video_preview_path):
-                    video_output = video_preview_path
-                    print(f"✅ 视频预览文件存在: {video_preview_path}")
-                else:
-                    print(f"⚠️ 视频预览文件不存在: {video_preview_path}")
-                    # 尝试列出目录内容
-                    try:
-                        video_dir = os.path.dirname(video_preview_path)
-                        if os.path.exists(video_dir):
-                            files = os.listdir(video_dir)
-                            print(f"🔍 目录 {video_dir} 内容: {files}")
-                    except Exception as e:
-                        print(f"⚠️ 无法列出目录内容: {e}")
+                # 寻找PNG预览图，而不是MP4视频
+                for video_file in session.video_files:
+                    if video_file.endswith('.png'):  # 只处理PNG图片
+                        print(f"🔍 调试信息 - 检查图片预览路径: {video_file}")
+                        if os.path.exists(video_file):
+                            video_output = video_file
+                            print(f"✅ 图片预览文件存在: {video_file}")
+                            break
+                        else:
+                            print(f"⚠️ 图片预览文件不存在: {video_file}")
+                
+                # 如果找不到PNG文件，尝试从MP4同目录找preview.png
+                if not video_output and session.video_files:
+                    first_video_dir = os.path.dirname(session.video_files[0])
+                    preview_path = os.path.join(first_video_dir, "preview.png")
+                    print(f"🔍 尝试查找预览图: {preview_path}")
+                    if os.path.exists(preview_path):
+                        video_output = preview_path
+                        print(f"✅ 找到预览图: {preview_path}")
+                    else:
+                        print(f"⚠️ 预览图不存在: {preview_path}")
+                        # 列出目录内容
+                        try:
+                            if os.path.exists(first_video_dir):
+                                files = os.listdir(first_video_dir)
+                                print(f"🔍 目录 {first_video_dir} 内容: {files}")
+                        except Exception as e:
+                            print(f"⚠️ 无法列出目录内容: {e}")
             else:
                 print("⚠️ 没有生成视频文件")
             
