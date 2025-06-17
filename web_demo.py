@@ -93,7 +93,7 @@ class WebDemo:
         except Exception as e:
             return "", f"❌ 语音处理出错: {str(e)}"
     
-    def process_input(self, text_input, audio_input, emotion_type=None, demo_mode=True, playback_mode="audio_only", progress=gr.Progress()):
+    def process_input(self, text_input, audio_input, emotion_type=None, demo_mode=True, playback_mode="🎵 仅音乐", progress=gr.Progress()):
         """处理用户输入并生成治疗方案"""
         # 处理语音输入
         voice_text = ""
@@ -118,7 +118,7 @@ class WebDemo:
             error_msg = "请通过以下任一方式提供输入:\n• 在文字框中描述您的感受\n• 录制语音描述\n• 选择预设情绪类型"
             if voice_status:
                 error_msg = f"{voice_status}\n\n{error_msg}"
-            return None, None, None, None, error_msg
+            return None, None, None, None, None, None, None, gr.Row(visible=False), error_msg
         
         try:
             # 根据模式设置时长
@@ -232,8 +232,32 @@ class WebDemo:
 • 🎬 Video Previews: {len(session.video_files)} stage previews
 """
             
+            # 根据播放模式准备输出
+            if playback_mode == "🎵 仅音乐":
+                # 仅音乐模式
+                audio_out = session.music_file
+                audio_download_out = session.music_file
+                video_player_out = None
+                video_download_out = None
+                video_row_visible = gr.Row(visible=False)
+            else:  # 🎵+🎬 音画结合
+                # 音画结合模式
+                if hasattr(session, 'combined_video') and session.combined_video:
+                    audio_out = None  # 不显示音频播放器
+                    audio_download_out = session.music_file  # 提供音频下载
+                    video_player_out = session.combined_video  # 显示视频播放器
+                    video_download_out = session.combined_video
+                    video_row_visible = gr.Row(visible=True)
+                else:
+                    # 如果没有生成合并视频，回退到音频模式
+                    audio_out = session.music_file
+                    audio_download_out = session.music_file
+                    video_player_out = None
+                    video_download_out = None
+                    video_row_visible = gr.Row(visible=False)
+            
             self.safe_progress_update(progress, 1.0, "Complete!")
-            return combined_output, video_output, report_image, self.create_simple_visualization(), status
+            return audio_out, audio_download_out, video_output, video_player_out, video_download_out, report_image, self.create_simple_visualization(), video_row_visible, status
             
         except Exception as e:
             import traceback
@@ -258,7 +282,7 @@ class WebDemo:
             if voice_status:
                 error_msg = f"{voice_status}\n\n{error_msg}"
             
-            return None, None, None, None, error_msg
+            return None, None, None, None, None, None, None, gr.Row(visible=False), error_msg
     
     def create_simple_visualization(self):
         """创建简单的可视化"""
@@ -417,14 +441,32 @@ def create_interface():
                 
                 with gr.Row():
                     with gr.Column():
-                        audio_output = gr.File(
-                            label="🎵 治疗音乐/音画结合 (多格式支持)",
-                            type="filepath"
+                        audio_output = gr.Audio(
+                            label="🎵 治疗音乐",
+                            type="filepath",
+                            autoplay=False
+                        )
+                        audio_download = gr.File(
+                            label="📥 音频下载",
+                            type="filepath",
+                            visible=False
                         )
                     
                     with gr.Column():
                         video_output = gr.Image(
                             label="🎬 视觉引导预览",
+                            type="filepath"
+                        )
+                
+                # 音画结合视频播放器（条件显示）
+                with gr.Row(visible=False) as video_player_row:
+                    with gr.Column():
+                        combined_video_player = gr.Video(
+                            label="🎬+🎵 音画结合治疗视频",
+                            autoplay=False
+                        )
+                        combined_video_download = gr.File(
+                            label="📥 完整视频下载",
                             type="filepath"
                         )
                 
@@ -456,7 +498,7 @@ def create_interface():
         submit_btn.click(
             fn=demo.process_input,
             inputs=[text_input, audio_input, emotion_buttons, demo_mode_toggle, playback_mode],
-            outputs=[audio_output, video_output, report_output, viz_output, status_output]
+            outputs=[audio_output, audio_download, video_output, combined_video_player, combined_video_download, report_output, viz_output, video_player_row, status_output]
         )
         
     return interface
