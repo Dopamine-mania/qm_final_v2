@@ -125,7 +125,12 @@ class MoodFlowApp:
         # 使用ISO模型规划
         stages = self.iso_model.plan_stages(current_emotion, target_emotion, duration)
         
+        # 验证阶段规划结果
+        if not stages:
+            raise ValueError("ISO模型未能生成有效的治疗阶段")
+        
         print(f"  治疗总时长: {duration} 分钟")
+        print(f"  生成了 {len(stages)} 个治疗阶段")
         for i, stage in enumerate(stages, 1):
             print(f"  第{i}阶段 - {stage['stage'].value}: {stage['duration']:.0f}分钟")
         
@@ -134,6 +139,9 @@ class MoodFlowApp:
     def generate_stage_music(self, stages: List[Dict], session_name: str) -> str:
         """为各阶段生成音乐"""
         print("\n🎵 生成治疗音乐...")
+        
+        if not stages:
+            raise ValueError("无法为空的治疗阶段生成音乐")
         
         # 音频参数
         total_duration = sum(stage['duration'] for stage in stages)
@@ -420,6 +428,7 @@ class MoodFlowApp:
         print(f"\n{'='*60}")
         print(f"🌙 开始治疗会话: {session_name}")
         print(f"{'='*60}")
+        print(f"参数: duration={duration}, create_full_videos={create_full_videos}")
         
         # 1. 情绪分析
         if progress_callback:

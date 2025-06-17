@@ -122,7 +122,7 @@ class WebDemo:
             else:  # 🎵+🎬 音画结合
                 # 创建音视频结合版本 (当前显示预览图)
                 combined_output = session.music_file
-                video_output = session.video_files[0] if session.video_files else None
+                video_output = session.video_files[0] if session.video_files and len(session.video_files) > 0 else None
             
             # 生成状态信息
             mode_text = "Demo (5 min)" if demo_mode else "Full (20 min)"
@@ -157,64 +157,104 @@ class WebDemo:
             return combined_output, video_output, report_image, self.create_simple_visualization(), status
             
         except Exception as e:
-            error_msg = f"❌ 处理出错: {str(e)}"
+            import traceback
+            # 打印详细错误信息到后端终端
+            print(f"\n{'='*60}")
+            print("🚨 Web界面处理出错:")
+            print(f"{'='*60}")
+            print(f"错误类型: {type(e).__name__}")
+            print(f"错误信息: {str(e)}")
+            print(f"输入参数:")
+            print(f"  - text_input: {text_input}")
+            print(f"  - audio_input: {audio_input}")
+            print(f"  - emotion_type: {emotion_type}")
+            print(f"  - demo_mode: {demo_mode}")
+            print(f"  - playback_mode: {playback_mode}")
+            print(f"\n完整错误堆栈:")
+            traceback.print_exc()
+            print(f"{'='*60}")
+            
+            # 生成前端错误信息
+            error_msg = f"❌ 处理出错: {str(e)}\n\n错误类型: {type(e).__name__}"
             if voice_status:
                 error_msg = f"{voice_status}\n\n{error_msg}"
+            
             return None, None, None, None, error_msg
     
     def create_simple_visualization(self):
         """创建简单的可视化"""
-        if not self.current_session:
+        try:
+            if not self.current_session:
+                print("⚠️ 警告: current_session为空，无法创建可视化")
+                return None
+            
+            if not self.current_session.iso_stages:
+                print("⚠️ 警告: iso_stages为空，无法创建可视化")
+                return None
+            
+            fig, ax = plt.subplots(figsize=(8, 6))
+        
+            # 安全地构建数据
+            stages = ["Start"]
+            valences = [self.current_session.detected_emotion.valence]
+            arousals = [self.current_session.detected_emotion.arousal]
+            times = [0]
+            
+            current_time = 0
+            for stage in self.current_session.iso_stages:
+                # 转换阶段名为英文
+                stage_name = stage['stage'].value
+                if '同步化' in stage_name:
+                    stage_en = 'Sync'
+                elif '引导化' in stage_name:
+                    stage_en = 'Guide'
+                elif '巩固化' in stage_name:
+                    stage_en = 'Consolidate'
+                else:
+                    stage_en = stage_name
+                
+                stages.append(stage_en)
+                valences.append(stage['emotion'].valence)
+                arousals.append(stage['emotion'].arousal)
+                current_time += stage['duration']
+                times.append(current_time)
+            
+            # 验证数据一致性
+            if not (len(times) == len(valences) == len(arousals) == len(stages)):
+                print(f"⚠️ 数据长度不一致: times={len(times)}, valences={len(valences)}, arousals={len(arousals)}, stages={len(stages)}")
+                return None
+            
+            # 绘制曲线
+            ax.plot(times, valences, 'b-o', linewidth=2, markersize=8, label='Valence')
+            ax.plot(times, arousals, 'r-o', linewidth=2, markersize=8, label='Arousal')
+            
+            # 添加阶段标注
+            for i in range(1, len(times)):
+                if i < len(stages):
+                    ax.axvline(x=times[i], color='gray', linestyle='--', alpha=0.3)
+                    ax.text(times[i]-0.5, 0.9, stages[i], rotation=45, fontsize=10)
+            
+            ax.set_xlabel('Time (minutes)')
+            ax.set_ylabel('Emotion Value')
+            ax.set_title('ISO 3-Stage Emotion Guidance Trajectory')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            ax.set_ylim(-1, 1)
+            
+            plt.tight_layout()
+            
+            # 保存图片
+            viz_path = Path("outputs/demo_sessions") / "current_visualization.png"
+            plt.savefig(viz_path)
+            plt.close()
+            
+            return str(viz_path)
+        
+        except Exception as e:
+            import traceback
+            print(f"⚠️ 可视化创建出错: {str(e)}")
+            traceback.print_exc()
             return None
-        
-        fig, ax = plt.subplots(figsize=(8, 6))
-        
-        # 绘制情绪轨迹
-        stages = ["开始"] + [s['stage'].value for s in self.current_session.iso_stages]
-        valences = [self.current_session.detected_emotion.valence] + \
-                   [s['emotion'].valence for s in self.current_session.iso_stages]
-        arousals = [self.current_session.detected_emotion.arousal] + \
-                   [s['emotion'].arousal for s in self.current_session.iso_stages]
-        
-        # 创建时间轴
-        times = [0]
-        current_time = 0
-        for stage in self.current_session.iso_stages:
-            current_time += stage['duration']
-            times.append(current_time)
-        
-        # 绘制曲线
-        ax.plot(times, valences, 'b-o', linewidth=2, markersize=8, label='Valence')
-        ax.plot(times, arousals, 'r-o', linewidth=2, markersize=8, label='Arousal')
-        
-        # 添加阶段标注
-        for i, (t, stage) in enumerate(zip(times[1:], stages[1:])):
-            ax.axvline(x=t, color='gray', linestyle='--', alpha=0.3)
-            # 将中文阶段名转换为英文
-            stage_en = stage
-            if '同步化' in stage:
-                stage_en = 'Sync'
-            elif '引导化' in stage:
-                stage_en = 'Guide'
-            elif '巩固化' in stage:
-                stage_en = 'Consolidate'
-            ax.text(t-1, 0.9, stage_en, rotation=45, fontsize=10)
-        
-        ax.set_xlabel('Time (minutes)')
-        ax.set_ylabel('Emotion Value')
-        ax.set_title('ISO 3-Stage Emotion Guidance Trajectory')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-        ax.set_ylim(-1, 1)
-        
-        plt.tight_layout()
-        
-        # 保存图片
-        viz_path = Path("outputs/demo_sessions") / "current_visualization.png"
-        plt.savefig(viz_path)
-        plt.close()
-        
-        return str(viz_path)
 
 def create_interface():
     """创建Gradio界面"""
