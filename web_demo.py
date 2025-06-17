@@ -30,8 +30,20 @@ class WebDemo:
     def __init__(self):
         self.app = MoodFlowApp()
         self.current_session = None
-        # 设置matplotlib字体为英文，避免中文显示问题
-        plt.rcParams['font.family'] = 'DejaVu Sans'
+        # 设置matplotlib使用系统默认字体，避免字体警告
+        import matplotlib.font_manager as fm
+        available_fonts = [f.name for f in fm.fontManager.ttflist]
+        
+        # 选择可用的字体，优先使用常见字体
+        preferred_fonts = ['DejaVu Sans', 'Helvetica', 'Arial', 'Liberation Sans', 'sans-serif']
+        selected_font = 'sans-serif'
+        
+        for font in preferred_fonts:
+            if font in available_fonts or font == 'sans-serif':
+                selected_font = font
+                break
+        
+        plt.rcParams['font.family'] = selected_font
         plt.rcParams['axes.unicode_minus'] = False
     
     def safe_progress_update(self, progress, value, desc=""):
@@ -173,12 +185,15 @@ class WebDemo:
             else:
                 print(f"⚠️ 报告文件不存在: {report_image}")
             
-            # 根据播放模式处理音频输出
+            # 根据播放模式处理输出
             if playback_mode == "🎵 仅音乐":
                 combined_output = session.music_file
             else:  # 🎵+🎬 音画结合
-                # 音画结合模式，使用相同的音频文件
-                combined_output = session.music_file
+                # 音画结合模式，如果有合并视频则使用，否则使用音频
+                if hasattr(session, 'combined_video') and session.combined_video:
+                    combined_output = session.combined_video
+                else:
+                    combined_output = session.music_file
             
             # 生成状态信息
             mode_text = "Demo (5 min)" if demo_mode else "Full (20 min)"
@@ -186,6 +201,14 @@ class WebDemo:
             status_parts = [f"✅ Therapy plan generated! ({mode_text}, {playback_text})"]
             if voice_status:
                 status_parts.append(f"\n🎤 {voice_status}")
+            
+            # 检查是否有音画结合文件
+            has_combined_video = hasattr(session, 'combined_video') and session.combined_video
+            output_file_info = ""
+            if has_combined_video:
+                output_file_info = f"• 🎬+🎵 Combined Video: {Path(session.combined_video).name}\n• 🎵 Audio Only: {Path(session.music_file).name}"
+            else:
+                output_file_info = f"• 🎵 Music: {Path(session.music_file).name}"
             
             status = f"""
 {status_parts[0]}{status_parts[1] if len(status_parts) > 1 else ''}
@@ -205,8 +228,8 @@ class WebDemo:
 4. Follow the visual guidance to adjust breathing
 
 📁 Generated Files:
-• 🎵 Music: {Path(session.music_file).name}
-• 🎬 Videos: {len(session.video_files)} stage previews
+{output_file_info}
+• 🎬 Video Previews: {len(session.video_files)} stage previews
 """
             
             self.safe_progress_update(progress, 1.0, "Complete!")
@@ -394,10 +417,9 @@ def create_interface():
                 
                 with gr.Row():
                     with gr.Column():
-                        audio_output = gr.Audio(
-                            label="🎵 治疗音乐 (20分钟三阶段)",
-                            type="filepath",
-                            autoplay=False
+                        audio_output = gr.File(
+                            label="🎵 治疗音乐/音画结合 (多格式支持)",
+                            type="filepath"
                         )
                     
                     with gr.Column():

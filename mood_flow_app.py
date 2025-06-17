@@ -48,6 +48,7 @@ class TherapySession:
     music_file: str
     video_files: List[str]
     start_time: datetime
+    combined_video: Optional[str] = None
     
 class MoodFlowApp:
     """心境流转应用主类"""
@@ -262,6 +263,90 @@ class MoodFlowApp:
         
         return track
     
+    def create_audio_video_combination(self, audio_path: str, video_files: List[str], stages: List[Dict], session_name: str) -> str:
+        """将音频和视觉引导合并为完整的音视频文件"""
+        print("\n🎬+🎵 创建音画结合视频...")
+        
+        import subprocess
+        
+        # 生成每个阶段的完整视频
+        stage_videos = []
+        
+        for i, stage in enumerate(stages):
+            pattern_config = {
+                0: ("breathing", "ocean"),      # 同步化：呼吸引导
+                1: ("gradient", "sunset"),      # 引导化：渐变过渡
+                2: ("waves", "lavender")        # 巩固化：柔和波浪
+            }
+            
+            pattern, palette = pattern_config.get(i, ("gradient", "ocean"))
+            stage_duration = stage['duration'] * 60  # 转换为秒
+            
+            stage_video_path = self.output_dir / f"{session_name}_stage_{i+1}_full.mp4"
+            
+            print(f"  生成第{i+1}阶段视频: {stage_duration:.0f}秒")
+            
+            # 生成该阶段的完整视频
+            self.video_generator.generate_video(
+                duration_seconds=stage_duration,
+                pattern_type=pattern,
+                color_palette=palette,
+                output_path=str(stage_video_path),
+                preview_only=False
+            )
+            
+            stage_videos.append(str(stage_video_path))
+        
+        # 合并所有阶段视频为一个完整视频
+        combined_video_path = self.output_dir / f"{session_name}_combined_visual.mp4"
+        
+        if len(stage_videos) > 1:
+            # 创建视频列表文件
+            video_list_path = self.output_dir / f"{session_name}_video_list.txt"
+            with open(video_list_path, 'w') as f:
+                for video in stage_videos:
+                    f.write(f"file '{os.path.abspath(video)}'\n")
+            
+            # 使用ffmpeg合并视频
+            concat_cmd = [
+                "ffmpeg", "-f", "concat", "-safe", "0", "-i", str(video_list_path),
+                "-c", "copy", str(combined_video_path), "-y"
+            ]
+            
+            print("  合并阶段视频...")
+            result = subprocess.run(concat_cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"⚠️ 视频合并失败: {result.stderr}")
+                # 如果合并失败，使用第一个视频
+                combined_video_path = stage_videos[0]
+            else:
+                print("  ✅ 阶段视频合并完成")
+                # 清理临时文件
+                video_list_path.unlink(missing_ok=True)
+                for video in stage_videos:
+                    Path(video).unlink(missing_ok=True)
+        else:
+            combined_video_path = stage_videos[0]
+        
+        # 将音频和视频合并
+        final_output_path = self.output_dir / f"{session_name}_complete_therapy.mp4"
+        
+        print("  合并音频和视频...")
+        merge_cmd = [
+            "ffmpeg", "-i", str(combined_video_path), "-i", audio_path,
+            "-c:v", "copy", "-c:a", "aac", "-shortest", str(final_output_path), "-y"
+        ]
+        
+        result = subprocess.run(merge_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"⚠️ 音视频合并失败: {result.stderr}")
+            return str(combined_video_path)  # 返回无音频的视频
+        else:
+            print(f"  ✅ 音视频合并完成: {final_output_path.name}")
+            # 清理临时视频文件
+            Path(combined_video_path).unlink(missing_ok=True)
+            return str(final_output_path)
+
     def generate_stage_videos(self, stages: List[Dict], session_name: str, create_full_videos: bool = False) -> List[str]:
         """为各阶段生成视频"""
         print("\n🎬 生成治疗视频...")
@@ -324,8 +409,20 @@ class MoodFlowApp:
         """创建会话可视化"""
         print("\n📊 生成可视化报告...")
         
-        # 设置matplotlib使用支持Unicode的字体
-        plt.rcParams['font.family'] = ['DejaVu Sans', 'Arial Unicode MS', 'SimHei', 'sans-serif']
+        # 设置matplotlib使用系统可用字体，避免字体警告
+        import matplotlib.font_manager as fm
+        available_fonts = [f.name for f in fm.fontManager.ttflist]
+        
+        # 选择第一个可用的字体，优先使用常见的无衬线字体
+        preferred_fonts = ['DejaVu Sans', 'Helvetica', 'Arial', 'Liberation Sans', 'sans-serif']
+        selected_font = 'sans-serif'  # 默认字体
+        
+        for font in preferred_fonts:
+            if font in available_fonts or font == 'sans-serif':
+                selected_font = font
+                break
+        
+        plt.rcParams['font.family'] = selected_font
         plt.rcParams['axes.unicode_minus'] = False
         
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
@@ -480,6 +577,14 @@ Generated: {session.start_time.strftime('%Y-%m-%d %H:%M:%S')}
         self.safe_progress_update(progress_callback, 0.7, "Creating visual guidance...")
         video_files = self.generate_stage_videos(iso_stages, session_name, create_full_videos)
         
+        # 5. 如果需要完整视频，创建音画结合版本
+        combined_video_file = None
+        if create_full_videos:
+            self.safe_progress_update(progress_callback, 0.8, "Combining audio and video...")
+            combined_video_file = self.create_audio_video_combination(
+                music_file, video_files, iso_stages, session_name
+            )
+        
         # 创建会话对象
         session = TherapySession(
             user_input=user_input,
@@ -489,6 +594,10 @@ Generated: {session.start_time.strftime('%Y-%m-%d %H:%M:%S')}
             video_files=video_files,
             start_time=start_time
         )
+        
+        # 如果有音画结合文件，添加到会话数据中
+        if combined_video_file:
+            session.combined_video = combined_video_file
         
         # 5. 生成可视化报告
         report_file = self.create_visualization(session)
