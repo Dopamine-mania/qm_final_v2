@@ -186,6 +186,10 @@ class MoodFlowApp:
         if not stages:
             raise ValueError("无法为空的治疗阶段生成音乐")
         
+        # 存储阶段信息供SOTA音乐生成使用
+        self._temp_iso_stages = stages
+        print(f"💾 已存储 {len(stages)} 个阶段信息供SOTA生成使用")
+        
         # 音频参数
         total_duration = sum(stage['duration'] for stage in stages)
         sample_rate = self.music_generator.sample_rate
@@ -231,6 +235,11 @@ class MoodFlowApp:
         # 保存音频
         audio_file = self.output_dir / f"{session_name}_therapy_music.wav"
         self.music_generator.save_audio(full_track, str(audio_file))
+        
+        # 清理临时存储
+        if hasattr(self, '_temp_iso_stages'):
+            delattr(self, '_temp_iso_stages')
+            print("🧹 已清理临时阶段信息")
         
         print(f"✅ 音乐生成完成: {audio_file.name}")
         

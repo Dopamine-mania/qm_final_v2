@@ -491,7 +491,11 @@ def integrate_enhanced_modules(mood_flow_app_instance, config: Optional[Dict] = 
             # 如果启用了SOTA音乐生成，使用MusicGen
             if adapter.use_sota_music_generation and adapter.musicgen_adapter:
                 try:
-                    # 获取当前情绪状态和阶段信息
+                    # 尝试从临时存储获取阶段信息
+                    emotion = None
+                    stage_info = None
+                    
+                    # 方法1: 从current_session获取（如果存在）
                     if hasattr(mood_flow_app_instance, 'current_session') and mood_flow_app_instance.current_session:
                         emotion = mood_flow_app_instance.current_session.iso_stages[stage_index]['emotion']
                         stage_info = {
@@ -499,7 +503,18 @@ def integrate_enhanced_modules(mood_flow_app_instance, config: Optional[Dict] = 
                             'stage_index': stage_index,
                             'therapy_goal': 'sleep_therapy'
                         }
-                        
+                    
+                    # 方法2: 从临时存储获取（generate_stage_music调用时）
+                    elif hasattr(mood_flow_app_instance, '_temp_iso_stages') and mood_flow_app_instance._temp_iso_stages:
+                        emotion = mood_flow_app_instance._temp_iso_stages[stage_index]['emotion']
+                        stage_info = {
+                            'stage_name': mood_flow_app_instance._temp_iso_stages[stage_index]['stage'].value,
+                            'stage_index': stage_index,
+                            'therapy_goal': 'sleep_therapy'
+                        }
+                    
+                    # 如果获取到了阶段信息，使用MusicGen
+                    if emotion and stage_info:
                         # 使用MusicGen生成音乐
                         audio_data, metadata = adapter.generate_sota_music(
                             emotion, stage_info, duration_seconds
@@ -510,21 +525,33 @@ def integrate_enhanced_modules(mood_flow_app_instance, config: Optional[Dict] = 
                             return audio_data
                         else:
                             print(f"⚠️ [SOTA生成] 阶段{stage_index+1}生成失败，回退到基础方法")
+                    else:
+                        print(f"⚠️ [SOTA生成] 无法获取阶段信息，回退到基础方法")
                     
                 except Exception as e:
                     print(f"⚠️ [SOTA生成] 出错，回退到基础方法: {e}")
             
             # 回退到增强的基础方法
-            if hasattr(mood_flow_app_instance, 'current_session'):
-                emotion = mood_flow_app_instance.current_session.iso_stages[stage_index]['emotion']
-                params = adapter.get_music_parameters_enhanced(emotion, 
-                                                              mood_flow_app_instance.current_session.iso_stages[stage_index],
-                                                              original_music_model)
-                # 使用增强参数
-                bpm = params.get('bpm', bpm)
-                key = params.get('key', key)
-                if isinstance(key, str) and ' ' in key:
-                    key = key.split()[0]  # 提取音符部分
+            try:
+                # 尝试获取情绪信息进行参数增强
+                emotion = None
+                stage = None
+                
+                if hasattr(mood_flow_app_instance, 'current_session') and mood_flow_app_instance.current_session:
+                    emotion = mood_flow_app_instance.current_session.iso_stages[stage_index]['emotion']
+                    stage = mood_flow_app_instance.current_session.iso_stages[stage_index]
+                elif hasattr(mood_flow_app_instance, '_temp_iso_stages') and mood_flow_app_instance._temp_iso_stages:
+                    emotion = mood_flow_app_instance._temp_iso_stages[stage_index]['emotion']
+                    stage = mood_flow_app_instance._temp_iso_stages[stage_index]
+                
+                if emotion and stage:
+                    params = adapter.get_music_parameters_enhanced(emotion, stage, original_music_model)
+                    bpm = params.get('bpm', bpm)
+                    key = params.get('key', key)
+                    if isinstance(key, str) and ' ' in key:
+                        key = key.split()[0]  # 提取音符部分
+            except Exception as e:
+                print(f"⚠️ 参数增强失败，使用原始参数: {e}")
             
             return original_generate(duration_seconds, bpm, key, stage_index)
         
