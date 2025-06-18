@@ -483,12 +483,38 @@ def integrate_enhanced_modules(mood_flow_app_instance, config: Optional[Dict] = 
     mood_flow_app_instance.get_enhancement_status = adapter.get_enhancement_status
     mood_flow_app_instance.get_detailed_emotion_info = adapter.get_detailed_emotion_info
     
-    # 添加音乐参数增强
+    # 添加音乐生成增强
     if hasattr(mood_flow_app_instance, '_generate_simple_music'):
         original_generate = mood_flow_app_instance._generate_simple_music
         
         def enhanced_generate(duration_seconds, bpm, key, stage_index):
-            # 获取当前情绪状态
+            # 如果启用了SOTA音乐生成，使用MusicGen
+            if adapter.use_sota_music_generation and adapter.musicgen_adapter:
+                try:
+                    # 获取当前情绪状态和阶段信息
+                    if hasattr(mood_flow_app_instance, 'current_session') and mood_flow_app_instance.current_session:
+                        emotion = mood_flow_app_instance.current_session.iso_stages[stage_index]['emotion']
+                        stage_info = {
+                            'stage_name': mood_flow_app_instance.current_session.iso_stages[stage_index]['stage'].value,
+                            'stage_index': stage_index,
+                            'therapy_goal': 'sleep_therapy'
+                        }
+                        
+                        # 使用MusicGen生成音乐
+                        audio_data, metadata = adapter.generate_sota_music(
+                            emotion, stage_info, duration_seconds
+                        )
+                        
+                        if audio_data is not None:
+                            print(f"🎼 [SOTA生成] 阶段{stage_index+1}音乐生成成功: {len(audio_data)}样本")
+                            return audio_data
+                        else:
+                            print(f"⚠️ [SOTA生成] 阶段{stage_index+1}生成失败，回退到基础方法")
+                    
+                except Exception as e:
+                    print(f"⚠️ [SOTA生成] 出错，回退到基础方法: {e}")
+            
+            # 回退到增强的基础方法
             if hasattr(mood_flow_app_instance, 'current_session'):
                 emotion = mood_flow_app_instance.current_session.iso_stages[stage_index]['emotion']
                 params = adapter.get_music_parameters_enhanced(emotion, 
@@ -496,7 +522,9 @@ def integrate_enhanced_modules(mood_flow_app_instance, config: Optional[Dict] = 
                                                               original_music_model)
                 # 使用增强参数
                 bpm = params.get('bpm', bpm)
-                key = params.get('key', key).split()[0]  # 提取音符部分
+                key = params.get('key', key)
+                if isinstance(key, str) and ' ' in key:
+                    key = key.split()[0]  # 提取音符部分
             
             return original_generate(duration_seconds, bpm, key, stage_index)
         

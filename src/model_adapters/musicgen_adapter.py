@@ -278,7 +278,11 @@ class MusicGenAdapter:
             if duration_seconds <= 30:
                 # 短序列：直接生成
                 wav = self.model.generate([prompt])
-                audio_data = wav[0].cpu().numpy()
+                # 确保转换为numpy数组
+                if hasattr(wav[0], 'cpu'):
+                    audio_data = wav[0].cpu().numpy().flatten()
+                else:
+                    audio_data = wav[0].flatten()
                 
             else:
                 # 长序列：使用窗口滑动技术
@@ -441,7 +445,11 @@ class MusicGenAdapter:
             
             # 生成当前窗口
             wav = self.model.generate([prompt])
-            current_audio = wav[0].cpu().numpy()
+            # 确保转换为numpy数组
+            if hasattr(wav[0], 'cpu'):
+                current_audio = wav[0].cpu().numpy().flatten()
+            else:
+                current_audio = wav[0].flatten()
             
             if full_audio is None:
                 # 第一个窗口：完整使用
