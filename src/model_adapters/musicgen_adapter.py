@@ -231,14 +231,15 @@ class MusicGenAdapter:
     
     def _configure_generation_params(self):
         """配置音乐生成参数"""
-        # 针对治疗音乐优化的参数
+        # 针对治疗音乐优化的参数（v2.0 - 高质量版本）
         self.model.set_generation_params(
             duration=10,        # 默认10秒（可动态调整）
-            temperature=0.8,    # 降低随机性，提高一致性
-            top_k=250,         # 限制采样范围
+            temperature=0.9,    # 提高创造性和音乐质量 (0.8→0.9)
+            top_k=200,         # 更严格的token选择，提高质量 (250→200)
             top_p=0.0,         # 禁用nucleus采样
-            cfg_coef=3.0       # 提高文本条件的影响
+            cfg_coef=5.0       # 大幅增强文本条件影响 (3.0→5.0)
         )
+        logger.info("🎛️ MusicGen参数已优化: temp=0.9, top_k=200, cfg_coef=5.0")
     
     def generate_therapeutic_music(self, 
                                  emotion_state: Dict,
@@ -343,6 +344,10 @@ class MusicGenAdapter:
         
         # 获取治疗阶段
         stage_name = stage_info.get('stage_name', 'unknown')
+        
+        # 调试：显示stage_info内容
+        logger.info(f"🔍 Prompt构建 - stage_info: {stage_info}")
+        logger.info(f"🔍 Prompt构建 - stage_name: {stage_name}")
         
         # 基础音乐特征
         emotion_features = self.EMOTION_TO_MUSICAL_FEATURES.get(primary_emotion, 
@@ -504,17 +509,18 @@ class MusicGenAdapter:
             audio_data[-fade_length:] *= fade_curve
             
         elif '巩固化' in stage_name:
-            # 巩固化阶段：整体音量较低，强化低频
-            audio_data *= 0.7  # 降低整体音量
+            # 巩固化阶段：轻微降低音量，保持音质
+            audio_data *= 0.85  # 温和降低音量 (0.7→0.85)
             
-            # 简单的低通滤波效果（模拟）
-            # 真实实现需要使用scipy.signal
-            audio_data = self._simple_lowpass_filter(audio_data)
+            # 改进的低通滤波，减少音质损失
+            audio_data = self._gentle_lowpass_filter(audio_data)
         
-        # 规范化音量
+        # 改进的音量归一化，保持动态范围
         max_amplitude = np.max(np.abs(audio_data))
         if max_amplitude > 0:
-            audio_data = audio_data / max_amplitude * 0.8  # 防止削波
+            # 使用更温和的归一化，保持音质
+            target_level = 0.9 if max_amplitude > 0.9 else max_amplitude
+            audio_data = audio_data / max_amplitude * target_level
         
         return audio_data
     
@@ -527,6 +533,20 @@ class MusicGenAdapter:
             filtered[i] = alpha * audio_data[i] + (1 - alpha) * filtered[i-1]
         
         return filtered
+    
+    def _gentle_lowpass_filter(self, audio_data: np.ndarray) -> np.ndarray:
+        """温和的低通滤波，保持音质"""
+        # 使用更温和的滤波参数，减少音质损失
+        alpha = 0.05  # 更小的alpha值，更温和的滤波
+        
+        # 应用双向滤波，减少相位失真
+        forward_filtered = self._simple_lowpass_filter(audio_data, alpha)
+        backward_filtered = self._simple_lowpass_filter(forward_filtered[::-1], alpha)
+        result = backward_filtered[::-1]
+        
+        # 混合原始信号和滤波信号，保持清晰度
+        mix_ratio = 0.7  # 70%滤波 + 30%原始
+        return mix_ratio * result + (1 - mix_ratio) * audio_data
     
     def save_audio(self, audio_data: np.ndarray, file_path: str, metadata: Optional[Dict] = None):
         """

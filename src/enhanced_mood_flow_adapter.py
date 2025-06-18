@@ -539,6 +539,9 @@ def integrate_enhanced_modules(mood_flow_app_instance, config: Optional[Dict] = 
                     
                     # 如果获取到了阶段信息，使用MusicGen
                     if emotion and stage_info:
+                        # 调试：打印stage_info内容
+                        print(f"🔍 传递给SOTA的阶段信息: {stage_info}")
+                        
                         # 使用MusicGen生成音乐
                         audio_data, metadata = adapter.generate_sota_music(
                             emotion, stage_info, duration_seconds

@@ -70,7 +70,8 @@ class MoodFlowApp:
         # 初始化核心组件
         self.iso_model = ISOModel()
         self.music_model = MusicModel()
-        self.music_generator = SleepMusicGenerator(sample_rate=44100)
+        # 使用与MusicGen一致的采样率，确保音质统一
+        self.music_generator = SleepMusicGenerator(sample_rate=32000)
         self.video_generator = SleepVideoGenerator(width=960, height=540, fps=24)
         
         # 创建输出目录
@@ -220,6 +221,9 @@ class MoodFlowApp:
             print(f"  第{i+1}阶段: BPM={bpm:.0f}, 调性={key} {mode}")
             
             # 生成该阶段的音乐
+            expected_samples = int(stage_duration * sample_rate)
+            print(f"    预期音频: {stage_duration:.1f}秒, {expected_samples}样本")
+            
             stage_track = self._generate_simple_music(
                 duration_seconds=stage_duration,
                 bpm=bpm,
@@ -227,10 +231,76 @@ class MoodFlowApp:
                 stage_index=i
             )
             
-            # 添加到完整音轨
-            end_pos = min(current_pos + len(stage_track), total_samples)
-            full_track[current_pos:end_pos] = stage_track[:end_pos-current_pos]
-            current_pos = end_pos
+            actual_samples = len(stage_track)
+            print(f"    实际音频: {actual_samples/sample_rate:.1f}秒, {actual_samples}样本")
+            
+            # 检查音频长度匹配
+            if actual_samples != expected_samples:
+                print(f"    ⚠️ 音频长度不匹配！差值: {(actual_samples-expected_samples)/sample_rate:.1f}秒")
+                
+                # 修复长度不匹配：裁剪或填充
+                if actual_samples > expected_samples:
+                    # 如果太长，裁剪到预期长度
+                    stage_track = stage_track[:expected_samples]
+                    print(f"    🔧 已裁剪到预期长度")
+                elif actual_samples < expected_samples:
+                    # 如果太短，用静音填充
+                    padding = np.zeros(expected_samples - actual_samples)
+                    stage_track = np.concatenate([stage_track, padding])
+                    print(f"    🔧 已填充静音到预期长度")
+                
+                actual_samples = len(stage_track)
+            
+            # 添加到完整音轨（确保边界安全）
+            end_pos = min(current_pos + actual_samples, total_samples)
+            actual_copy_length = end_pos - current_pos
+            
+            print(f"    拼接信息: 位置{current_pos}-{end_pos}, 复制{actual_copy_length}样本")
+            
+            if actual_copy_length > 0:
+                # 简化的阶段过渡：在每个阶段开头添加淡入效果
+                stage_track_to_add = stage_track[:actual_copy_length].copy()
+                
+                if i > 0:  # 不是第一个阶段，添加淡入效果
+                    fadein_samples = min(int(2 * sample_rate), len(stage_track_to_add) // 4)  # 2秒淡入
+                    if fadein_samples > 0:
+                        fade_curve = np.linspace(0.5, 1.0, fadein_samples)
+                        stage_track_to_add[:fadein_samples] *= fade_curve
+                        print(f"    🎵 已添加{fadein_samples/sample_rate:.1f}秒淡入效果")
+                
+                # 添加到完整音轨
+                full_track[current_pos:end_pos] = stage_track_to_add
+                current_pos = end_pos
+            else:
+                print(f"    ❌ 无法拼接：位置超出范围")
+            
+            print(f"    ✅ 阶段{i+1}完成，当前位置: {current_pos}/{total_samples}")
+            print()
+        
+        # 验证最终音频完整性
+        final_duration = len(full_track) / sample_rate
+        expected_duration = total_duration * 60
+        print(f"\n🔍 音频完整性验证:")
+        print(f"  预期总时长: {expected_duration:.1f}秒")
+        print(f"  实际总时长: {final_duration:.1f}秒")
+        print(f"  最终位置: {current_pos}/{total_samples}")
+        
+        # 检查是否有未填充的部分
+        if current_pos < total_samples:
+            remaining_samples = total_samples - current_pos
+            remaining_duration = remaining_samples / sample_rate
+            print(f"  ⚠️ 发现{remaining_duration:.1f}秒未填充音频")
+            
+            # 用静音填充剩余部分
+            full_track[current_pos:] = 0
+            print(f"  🔧 已用静音填充剩余部分")
+        
+        # 添加淡出效果到音频末尾，避免突然结束
+        fade_samples = int(3 * sample_rate)  # 3秒淡出
+        if len(full_track) > fade_samples:
+            fade_curve = np.linspace(1.0, 0.0, fade_samples)
+            full_track[-fade_samples:] *= fade_curve
+            print(f"  🎵 已添加3秒淡出效果")
         
         # 保存音频
         audio_file = self.output_dir / f"{session_name}_therapy_music.wav"
@@ -242,6 +312,7 @@ class MoodFlowApp:
             print("🧹 已清理临时阶段信息")
         
         print(f"✅ 音乐生成完成: {audio_file.name}")
+        print(f"   最终音频: {final_duration:.1f}秒, {len(full_track)}样本")
         
         return str(audio_file)
     
