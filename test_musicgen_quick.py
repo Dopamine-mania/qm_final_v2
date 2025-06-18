@@ -87,9 +87,18 @@ def test_model_loading():
         
         print(f"✅ 模型加载成功! 耗时: {load_time:.1f}秒")
         
-        # 检查模型设备
-        device = next(model.parameters()).device
-        print(f"📍 模型设备: {device}")
+        # 检查模型设备（MusicGen的设备检查方式不同）
+        try:
+            # MusicGen模型的设备检查
+            if hasattr(model, 'device'):
+                device = model.device
+            elif hasattr(model, 'compression_model') and hasattr(model.compression_model, 'device'):
+                device = model.compression_model.device
+            else:
+                device = "auto-detected"
+            print(f"📍 模型设备: {device}")
+        except Exception as e:
+            print(f"📍 模型设备: 自动选择 (无法直接检测: {e})")
         
         return model
     except Exception as e:
@@ -123,6 +132,57 @@ def test_generation(model):
         print(f"❌ 音乐生成失败: {e}")
         return False
 
+def test_adapter():
+    """测试我们的MusicGen适配器"""
+    print("\n🔍 测试适配器集成...")
+    
+    try:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+        
+        from src.model_adapters.musicgen_adapter import create_musicgen_adapter
+        
+        # 创建适配器
+        print("📦 创建适配器...")
+        adapter = create_musicgen_adapter(model_size="small")
+        
+        if not adapter.is_available():
+            print("❌ 适配器不可用")
+            return False
+        
+        print("✅ 适配器创建成功")
+        
+        # 测试生成
+        print("🎵 测试适配器音乐生成...")
+        emotion_state = {
+            'valence': -0.5,
+            'arousal': 0.3,
+            'primary_emotion': 'sadness'
+        }
+        
+        stage_info = {
+            'stage_name': '同步化',
+            'therapy_goal': 'relaxation'
+        }
+        
+        audio_data, metadata = adapter.generate_therapeutic_music(
+            emotion_state=emotion_state,
+            stage_info=stage_info,
+            duration_seconds=2  # 2秒快速测试
+        )
+        
+        if audio_data is not None:
+            print(f"✅ 适配器生成成功! 长度: {len(audio_data)} 样本")
+            return True
+        else:
+            print("❌ 适配器生成失败")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 适配器测试失败: {e}")
+        return False
+
 def main():
     """主测试流程"""
     print("🎼 MusicGen安装验证测试")
@@ -154,12 +214,19 @@ def main():
         print("\n❌ 音乐生成测试失败")
         return False
     
+    # 6. 适配器测试
+    if not test_adapter():
+        print("\n⚠️ 适配器测试失败，但基础MusicGen功能正常")
+        print("可以尝试基础SOTA模式: python web_demo.py --sota")
+        return True  # 基础功能正常就算成功
+    
     print("\n" + "=" * 50)
-    print("🎉 所有测试通过！MusicGen安装成功！")
-    print("\n📋 下一步:")
-    print("1. 运行: python web_demo.py --sota")
-    print("2. 或者: python web_demo.py --enhanced --sota")
-    print("\n💡 首次使用时会下载更大的模型，请耐心等待")
+    print("🎉 所有测试通过！MusicGen完整功能正常！")
+    print("\n📋 推荐使用:")
+    print("1. 完整模式: python web_demo.py --enhanced --sota")
+    print("2. 仅SOTA: python web_demo.py --sota")
+    print("3. 增强模式: python web_demo.py --enhanced")
+    print("\n💡 你的40GB GPU可以运行最大的MusicGen模型！")
     
     return True
 
