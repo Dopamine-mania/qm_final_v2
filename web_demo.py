@@ -76,13 +76,30 @@ class WebDemo:
                 return "", "❌ 音频文件无效或为空"
             
             # 简化版语音处理：目前使用示例文本
-            # 在实际部署时可以集成专业的语音识别服务
+            # 在实际部署时可以集成专业的语音识别服务（如Whisper、百度AI等）
             sample_texts = [
+                # 焦虑/紧张类
                 "今天工作压力很大，躺在床上翻来覆去睡不着，总是想着明天的会议",
                 "最近总是感到焦虑，晚上很难入睡，即使睡着了也容易醒",
+                "身心俱疲，但躺下后大脑还是很活跃，总是胡思乱想",
+                "压力特别大，心里总是不安，躺下来就开始担心各种事情",
+                "脑子里想法太多，静不下来，越想睡越睡不着",
+                
+                # 疲惫/抑郁类
                 "心情有些低落，感觉很疲惫但就是睡不着，对什么都提不起兴趣",
+                "今天过得很累，但是躺在床上却怎么也睡不着，心情很沮丧",
+                "感觉身体很疲惫，精神也很低落，但就是难以入睡",
+                "工作一整天很累了，但是一躺下就开始想不开心的事情",
+                
+                # 兴奋/激动类
                 "有点兴奋睡不着，脑子里想着很多事情，越想越清醒",
-                "身心俱疲，但躺下后大脑还是很活跃，总是胡思乱想"
+                "今天发生了很多开心的事，现在太兴奋了睡不着",
+                "心情很激动，有很多想法，感觉精神很亢奋",
+                
+                # 一般失眠类
+                "最近老是失眠，不知道为什么就是睡不着",
+                "睡眠质量不好，总是半夜醒来，然后就再也睡不着了",
+                "生活节奏比较乱，作息不规律，现在想睡却睡不着"
             ]
             
             import random
@@ -96,7 +113,7 @@ class WebDemo:
             text_index = int(file_hash[:8], 16) % len(sample_texts)
             selected_text = sample_texts[text_index]
             
-            return selected_text, f"🎤 语音已处理 (演示模式): {selected_text}"
+            return selected_text, f"🎤 语音已处理 (演示模式)\n📝 识别文本: {selected_text}\n💡 提示: 当前为演示模式，实际部署可集成Whisper等语音识别服务"
                 
         except Exception as e:
             return "", f"❌ 语音处理出错: {str(e)}"
@@ -581,6 +598,10 @@ def main():
                        help='启用理论驱动的增强模块（细粒度情绪识别、精准音乐映射等）')
     parser.add_argument('--sota', action='store_true',
                        help='启用SOTA音乐生成模型（MusicGen，需要先安装audiocraft）')
+    parser.add_argument('--enhancement_config', type=str, default=None,
+                       choices=['disabled', 'emotion_only', 'planning_only', 'mapping_only', 
+                               'full', 'full_with_sota', 'sota_only'],
+                       help='指定增强配置模式（优先级高于--enhanced和--sota）')
     parser.add_argument('--port', type=int, default=None,
                        help='指定端口号（默认自动查找7860-7900）')
     parser.add_argument('--share', action='store_true', default=True,
@@ -592,28 +613,46 @@ def main():
     
     print("启动Web演示界面...")
     
-    # 确定增强模式
-    enhancement_config = 'disabled'
-    if args.enhanced and args.sota:
-        enhancement_config = 'full_with_sota'
-        print("🚀 使用完整增强模块 + SOTA音乐生成")
-        print("  - 细粒度情绪识别（9种情绪分类）")
-        print("  - ISO原则治疗路径规划")
-        print("  - 精准音乐特征映射")
-        print("  - MusicGen高质量音乐生成")
-    elif args.enhanced:
-        enhancement_config = 'full'
-        print("📚 使用理论驱动的增强模块")
-        print("  - 细粒度情绪识别（9种情绪分类）")
-        print("  - ISO原则治疗路径规划")
-        print("  - 精准音乐特征映射")
-    elif args.sota:
-        enhancement_config = 'sota_only'
-        print("🎼 使用SOTA音乐生成模式")
-        print("  - MusicGen高质量音乐生成")
-        print("  - 基础情绪识别和治疗规划")
+    # 确定增强模式（优先使用enhancement_config参数）
+    if args.enhancement_config:
+        enhancement_config = args.enhancement_config
+        print(f"🎛️ 使用指定配置: {enhancement_config}")
     else:
-        print("🔧 使用基础模式")
+        # 兼容旧参数
+        enhancement_config = 'disabled'
+        if args.enhanced and args.sota:
+            enhancement_config = 'full_with_sota'
+        elif args.enhanced:
+            enhancement_config = 'full'
+        elif args.sota:
+            enhancement_config = 'sota_only'
+    
+    # 显示配置信息
+    config_descriptions = {
+        'disabled': '🔧 基础模式（原版系统）',
+        'emotion_only': '🧠 仅情绪识别增强',
+        'planning_only': '📋 仅治疗规划增强',
+        'mapping_only': '🎵 仅音乐映射增强',
+        'full': '📚 完整增强模块（不含SOTA）',
+        'full_with_sota': '🚀 完整增强 + SOTA音乐生成',
+        'sota_only': '🎼 仅SOTA音乐生成'
+    }
+    
+    print(f"启动模式: {config_descriptions.get(enhancement_config, enhancement_config)}")
+    
+    if enhancement_config != 'disabled':
+        features = []
+        if 'emotion' in enhancement_config or 'full' in enhancement_config:
+            features.append("细粒度情绪识别（9种情绪分类）")
+        if 'planning' in enhancement_config or 'full' in enhancement_config:
+            features.append("ISO原则治疗路径规划")
+        if 'mapping' in enhancement_config or 'full' in enhancement_config:
+            features.append("精准音乐特征映射")
+        if 'sota' in enhancement_config:
+            features.append("MusicGen高质量音乐生成")
+        
+        for feature in features:
+            print(f"  - {feature}")
     
     # 创建输出目录
     Path("outputs/demo_sessions").mkdir(parents=True, exist_ok=True)
