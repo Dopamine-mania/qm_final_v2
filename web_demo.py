@@ -27,14 +27,16 @@ except ImportError as e:
     TherapySession = mood_flow_module.TherapySession
 
 class WebDemo:
-    def __init__(self, use_enhanced_modules: bool = False):
+    def __init__(self, use_enhanced_modules: bool = False, enhancement_config: str = 'disabled'):
         """
         初始化Web演示界面
         
         Args:
             use_enhanced_modules: 是否使用理论驱动的增强模块
+            enhancement_config: 增强配置名称
         """
-        self.app = MoodFlowApp(use_enhanced_modules=use_enhanced_modules)
+        self.enhancement_config = enhancement_config
+        self.app = MoodFlowApp(use_enhanced_modules=use_enhanced_modules, enhancement_config=enhancement_config)
         self.current_session = None
         # 设置matplotlib使用系统默认字体，避免字体警告
         import matplotlib.font_manager as fm
@@ -385,34 +387,44 @@ class WebDemo:
             traceback.print_exc()
             return None
 
-def create_interface(use_enhanced_modules: bool = False):
+def create_interface(enhancement_config: str = 'disabled'):
     """
     创建Gradio界面
     
     Args:
-        use_enhanced_modules: 是否使用理论驱动的增强模块
+        enhancement_config: 增强配置名称 ('disabled', 'full', 'full_with_sota', 'sota_only')
     """
-    demo = WebDemo(use_enhanced_modules=use_enhanced_modules)
+    # 根据配置决定是否使用增强模块
+    use_enhanced = enhancement_config in ['full', 'full_with_sota']
+    demo = WebDemo(use_enhanced_modules=use_enhanced, enhancement_config=enhancement_config)
     
     with gr.Blocks(title="心境流转 - 睡眠治疗系统", theme=gr.themes.Soft()) as interface:
         # 显示当前运行模式
-        if demo.app.use_enhanced and hasattr(demo.app, 'enhancement_adapter'):
-            enhancement_status = demo.app.get_enhancement_status() if hasattr(demo.app, 'get_enhancement_status') else {}
+        enhancement_status = demo.app.get_enhancement_status() if hasattr(demo.app, 'get_enhancement_status') else {}
+        
+        # 确定模式文本
+        if demo.enhancement_config == 'full_with_sota':
+            status_text = "🚀 **完整增强模式 + SOTA音乐生成**"
+        elif demo.enhancement_config == 'full':
             status_text = "✅ **增强模式** (理论驱动优化)"
-            
-            # 显示各模块状态
-            module_status = []
-            if enhancement_status.get('emotion_recognition', False):
-                module_status.append("🧠 细粒度情绪识别")
-            if enhancement_status.get('therapy_planning', False):
-                module_status.append("📋 ISO治疗规划")
-            if enhancement_status.get('music_mapping', False):
-                module_status.append("🎵 精准音乐映射")
-            
-            if module_status:
-                status_text += f"\n\n已启用模块：{' | '.join(module_status)}"
+        elif demo.enhancement_config == 'sota_only':
+            status_text = "🎼 **SOTA音乐生成模式**"
         else:
             status_text = "🔧 **基础模式**"
+        
+        # 显示各模块状态
+        module_status = []
+        if enhancement_status.get('emotion_recognition', False):
+            module_status.append("🧠 细粒度情绪识别")
+        if enhancement_status.get('therapy_planning', False):
+            module_status.append("📋 ISO治疗规划")
+        if enhancement_status.get('music_mapping', False):
+            module_status.append("🎵 精准音乐映射")
+        if enhancement_status.get('sota_music_generation', False):
+            module_status.append("🎼 MusicGen音乐生成")
+        
+        if module_status:
+            status_text += f"\n\n已启用模块：{' | '.join(module_status)}"
         
         gr.Markdown(f"""
         # 🌙 《心境流转》AI睡眠治疗系统
@@ -567,6 +579,8 @@ def main():
     parser = argparse.ArgumentParser(description='心境流转睡眠治疗系统Web界面')
     parser.add_argument('--enhanced', action='store_true', 
                        help='启用理论驱动的增强模块（细粒度情绪识别、精准音乐映射等）')
+    parser.add_argument('--sota', action='store_true',
+                       help='启用SOTA音乐生成模型（MusicGen，需要先安装audiocraft）')
     parser.add_argument('--port', type=int, default=None,
                        help='指定端口号（默认自动查找7860-7900）')
     parser.add_argument('--share', action='store_true', default=True,
@@ -577,11 +591,29 @@ def main():
     args = parser.parse_args()
     
     print("启动Web演示界面...")
-    if args.enhanced:
+    
+    # 确定增强模式
+    enhancement_config = 'disabled'
+    if args.enhanced and args.sota:
+        enhancement_config = 'full_with_sota'
+        print("🚀 使用完整增强模块 + SOTA音乐生成")
+        print("  - 细粒度情绪识别（9种情绪分类）")
+        print("  - ISO原则治疗路径规划")
+        print("  - 精准音乐特征映射")
+        print("  - MusicGen高质量音乐生成")
+    elif args.enhanced:
+        enhancement_config = 'full'
         print("📚 使用理论驱动的增强模块")
         print("  - 细粒度情绪识别（9种情绪分类）")
         print("  - ISO原则治疗路径规划")
         print("  - 精准音乐特征映射")
+    elif args.sota:
+        enhancement_config = 'sota_only'
+        print("🎼 使用SOTA音乐生成模式")
+        print("  - MusicGen高质量音乐生成")
+        print("  - 基础情绪识别和治疗规划")
+    else:
+        print("🔧 使用基础模式")
     
     # 创建输出目录
     Path("outputs/demo_sessions").mkdir(parents=True, exist_ok=True)
@@ -599,7 +631,7 @@ def main():
         print(f"🚀 使用端口: {port}")
     
     # 创建并启动界面
-    interface = create_interface(use_enhanced_modules=args.enhanced)
+    interface = create_interface(enhancement_config=enhancement_config)
     
     # 启动服务
     interface.launch(

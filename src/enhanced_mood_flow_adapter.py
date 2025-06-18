@@ -14,6 +14,7 @@
 
 import os
 import sys
+import numpy as np
 from typing import Dict, Optional, Any, Tuple
 from pathlib import Path
 import logging
@@ -31,6 +32,19 @@ from src.therapy_planning.enhanced_iso_planner import (
 from src.music_mapping.enhanced_music_mapper import (
     EnhancedMusicMapper, create_music_mapper, MusicProfile
 )
+
+# 导入SOTA模型适配器
+try:
+    from src.model_adapters.musicgen_adapter import (
+        MusicGenAdapter, create_musicgen_adapter
+    )
+    from src.model_adapters.music_quality_evaluator import (
+        MusicQualityEvaluator, create_music_quality_evaluator
+    )
+    SOTA_MODELS_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"SOTA模型适配器导入失败: {e}")
+    SOTA_MODELS_AVAILABLE = False
 
 # 设置日志
 logger = logging.getLogger(__name__)
@@ -50,6 +64,7 @@ class EnhancedMoodFlowAdapter:
                  use_enhanced_emotion: bool = True,
                  use_enhanced_planning: bool = True,
                  use_enhanced_mapping: bool = True,
+                 use_sota_music_generation: bool = False,
                  fallback_to_original: bool = True):
         """
         初始化适配器
@@ -58,11 +73,13 @@ class EnhancedMoodFlowAdapter:
             use_enhanced_emotion: 是否使用增强情绪识别
             use_enhanced_planning: 是否使用增强治疗规划
             use_enhanced_mapping: 是否使用增强音乐映射
+            use_sota_music_generation: 是否使用SOTA音乐生成模型（MusicGen）
             fallback_to_original: 出错时是否回退到原始实现
         """
         self.use_enhanced_emotion = use_enhanced_emotion
         self.use_enhanced_planning = use_enhanced_planning
         self.use_enhanced_mapping = use_enhanced_mapping
+        self.use_sota_music_generation = use_sota_music_generation and SOTA_MODELS_AVAILABLE
         self.fallback_to_original = fallback_to_original
         
         # 初始化增强模块
@@ -91,6 +108,25 @@ class EnhancedMoodFlowAdapter:
                 logger.info("✅ 增强音乐映射器初始化成功")
             else:
                 self.music_mapper = None
+                
+            # SOTA音乐生成器
+            if self.use_sota_music_generation:
+                try:
+                    self.musicgen_adapter = create_musicgen_adapter(
+                        model_size="auto",
+                        use_melody_conditioning=True
+                    )
+                    self.music_quality_evaluator = create_music_quality_evaluator()
+                    logger.info("✅ MusicGen音乐生成器初始化成功")
+                except Exception as e:
+                    logger.error(f"MusicGen初始化失败: {e}")
+                    self.musicgen_adapter = None
+                    self.music_quality_evaluator = None
+                    if not self.fallback_to_original:
+                        raise
+            else:
+                self.musicgen_adapter = None
+                self.music_quality_evaluator = None
                 
         except Exception as e:
             logger.error(f"❌ 增强模块初始化失败: {e}")
@@ -277,7 +313,8 @@ class EnhancedMoodFlowAdapter:
         return {
             'emotion_recognition': self.use_enhanced_emotion and self.emotion_recognizer is not None,
             'therapy_planning': self.use_enhanced_planning and self.iso_planner is not None,
-            'music_mapping': self.use_enhanced_mapping and self.music_mapper is not None
+            'music_mapping': self.use_enhanced_mapping and self.music_mapper is not None,
+            'sota_music_generation': self.use_sota_music_generation and self.musicgen_adapter is not None
         }
     
     def get_detailed_emotion_info(self, emotion_state) -> Optional[Dict]:
@@ -311,6 +348,93 @@ class EnhancedMoodFlowAdapter:
             'neutral': '中性'
         }
         return mapping.get(emotion, emotion)
+    
+    def generate_sota_music(self, 
+                          emotion_state, 
+                          stage_info: Dict, 
+                          duration_seconds: float = 60,
+                          original_method=None) -> Tuple[Optional[np.ndarray], Dict]:
+        """
+        使用SOTA模型生成高质量音乐
+        
+        Args:
+            emotion_state: 情绪状态
+            stage_info: 治疗阶段信息
+            duration_seconds: 音乐时长（秒）
+            original_method: 原始音乐生成方法（回退用）
+            
+        Returns:
+            (audio_data, metadata): 音频数据和元数据
+        """
+        if not self.use_sota_music_generation or not self.musicgen_adapter:
+            # 如果未启用或不可用，使用原始方法
+            if original_method:
+                return original_method(duration_seconds, stage_info), {}
+            else:
+                return None, {'error': 'SOTA music generation not available'}
+        
+        try:
+            # 准备情绪状态信息
+            emotion_dict = {
+                'valence': emotion_state.valence,
+                'arousal': emotion_state.arousal,
+                'primary_emotion': getattr(emotion_state, '_primary_emotion', 'neutral')
+            }
+            
+            # 计算目标BPM
+            bpm_target = None
+            if hasattr(self, 'music_mapper') and self.music_mapper:
+                music_params = self.music_mapper.get_music_params(
+                    emotion_state.valence, emotion_state.arousal
+                )
+                bpm_target = music_params.get('bpm')
+            
+            # 使用MusicGen生成音乐
+            print(f"\n{'='*60}")
+            print(f"🎼 [SOTA音乐生成 v1.0] MusicGen高质量生成:")
+            print(f"{'='*60}")
+            print(f"  情绪状态: V={emotion_dict['valence']:.2f}, A={emotion_dict['arousal']:.2f}")
+            print(f"  主要情绪: {emotion_dict['primary_emotion']}")
+            print(f"  治疗阶段: {stage_info.get('stage', 'unknown')}")
+            print(f"  目标时长: {duration_seconds}秒")
+            if bpm_target:
+                print(f"  目标BPM: {bpm_target}")
+            print(f"{'='*60}")
+            
+            audio_data, metadata = self.musicgen_adapter.generate_therapeutic_music(
+                emotion_state=emotion_dict,
+                stage_info=stage_info,
+                duration_seconds=duration_seconds,
+                bpm_target=bpm_target
+            )
+            
+            # 质量评估
+            if self.music_quality_evaluator and audio_data is not None:
+                quality_metrics = self.music_quality_evaluator.evaluate_music_quality(
+                    audio_data, metadata, therapy_context=stage_info
+                )
+                metadata['quality_metrics'] = quality_metrics
+                
+                print(f"\n🏆 质量评估结果:")
+                print(f"  技术质量: {quality_metrics.technical_score:.2f}/1.0")
+                print(f"  治疗效果: {quality_metrics.therapeutic_score:.2f}/1.0")
+                print(f"  综合评分: {quality_metrics.overall_score:.2f}/1.0")
+                
+                if quality_metrics.warnings:
+                    print(f"  ⚠️ 质量警告: {len(quality_metrics.warnings)}个")
+                if quality_metrics.recommendations:
+                    print(f"  💡 改进建议: {len(quality_metrics.recommendations)}个")
+                print(f"{'='*60}")
+            
+            return audio_data, metadata
+            
+        except Exception as e:
+            logger.error(f"SOTA音乐生成失败: {e}")
+            if self.fallback_to_original and original_method:
+                logger.info("回退到原始音乐生成方法")
+                return original_method(duration_seconds, stage_info), {'fallback': True}
+            else:
+                return None, {'error': str(e)}
 
 
 def integrate_enhanced_modules(mood_flow_app_instance, config: Optional[Dict] = None):
@@ -390,30 +514,49 @@ ENHANCEMENT_CONFIGS = {
         'use_enhanced_emotion': True,
         'use_enhanced_planning': True,
         'use_enhanced_mapping': True,
+        'use_sota_music_generation': False,  # 默认关闭SOTA模型
+        'fallback_to_original': True
+    },
+    'full_with_sota': {
+        'use_enhanced_emotion': True,
+        'use_enhanced_planning': True,
+        'use_enhanced_mapping': True,
+        'use_sota_music_generation': True,   # 启用SOTA音乐生成
+        'fallback_to_original': True
+    },
+    'sota_only': {
+        'use_enhanced_emotion': False,
+        'use_enhanced_planning': False,
+        'use_enhanced_mapping': False,
+        'use_sota_music_generation': True,   # 仅SOTA音乐生成
         'fallback_to_original': True
     },
     'emotion_only': {
         'use_enhanced_emotion': True,
         'use_enhanced_planning': False,
         'use_enhanced_mapping': False,
+        'use_sota_music_generation': False,
         'fallback_to_original': True
     },
     'planning_only': {
         'use_enhanced_emotion': False,
         'use_enhanced_planning': True,
         'use_enhanced_mapping': False,
+        'use_sota_music_generation': False,
         'fallback_to_original': True
     },
     'mapping_only': {
         'use_enhanced_emotion': False,
         'use_enhanced_planning': False,
         'use_enhanced_mapping': True,
+        'use_sota_music_generation': False,
         'fallback_to_original': True
     },
     'disabled': {
         'use_enhanced_emotion': False,
         'use_enhanced_planning': False,
         'use_enhanced_mapping': False,
+        'use_sota_music_generation': False,
         'fallback_to_original': True
     }
 }

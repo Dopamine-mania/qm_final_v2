@@ -53,12 +53,13 @@ class TherapySession:
 class MoodFlowApp:
     """心境流转应用主类"""
     
-    def __init__(self, use_enhanced_modules: bool = False):
+    def __init__(self, use_enhanced_modules: bool = False, enhancement_config: str = 'disabled'):
         """
         初始化心境流转应用
         
         Args:
             use_enhanced_modules: 是否使用增强模块（理论驱动的优化版本）
+            enhancement_config: 增强配置名称
         """
         print("\n" + "="*60)
         print("🌙 《心境流转》睡眠治疗系统 启动中...")
@@ -90,12 +91,22 @@ class MoodFlowApp:
         self.use_enhanced = use_enhanced_modules
         self.enhancement_adapter = None
         
-        if use_enhanced_modules:
+        if use_enhanced_modules or enhancement_config != 'disabled':
             try:
                 from src.enhanced_mood_flow_adapter import integrate_enhanced_modules, ENHANCEMENT_CONFIGS
-                # 使用完整增强配置
-                self.enhancement_adapter = integrate_enhanced_modules(self, ENHANCEMENT_CONFIGS['full'])
-                print("✅ 增强模块加载成功！")
+                # 使用指定的增强配置
+                config = ENHANCEMENT_CONFIGS.get(enhancement_config, ENHANCEMENT_CONFIGS['disabled'])
+                self.enhancement_adapter = integrate_enhanced_modules(self, config)
+                print(f"✅ 增强模块加载成功！配置: {enhancement_config}")
+                
+                # 显示SOTA模型状态
+                if config.get('use_sota_music_generation', False):
+                    status = self.get_enhancement_status()
+                    if status.get('sota_music_generation', False):
+                        print("🎼 SOTA音乐生成模型已启用")
+                    else:
+                        print("⚠️ SOTA音乐生成模型启用失败，使用基础音乐生成")
+                        
             except Exception as e:
                 print(f"⚠️ 增强模块加载失败，使用基础版本: {e}")
                 self.use_enhanced = False
