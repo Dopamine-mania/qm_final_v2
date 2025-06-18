@@ -53,9 +53,17 @@ class TherapySession:
 class MoodFlowApp:
     """心境流转应用主类"""
     
-    def __init__(self):
+    def __init__(self, use_enhanced_modules: bool = False):
+        """
+        初始化心境流转应用
+        
+        Args:
+            use_enhanced_modules: 是否使用增强模块（理论驱动的优化版本）
+        """
         print("\n" + "="*60)
         print("🌙 《心境流转》睡眠治疗系统 启动中...")
+        if use_enhanced_modules:
+            print("📚 启用理论驱动的增强模块")
         print("="*60)
         
         # 初始化核心组件
@@ -77,6 +85,20 @@ class MoodFlowApp:
             "兴奋": ["兴奋", "激动", "开心", "高兴", "刺激"],
             "平静": ["平静", "放松", "舒适", "安静", "宁静"]
         }
+        
+        # 集成增强模块（如果启用）
+        self.use_enhanced = use_enhanced_modules
+        self.enhancement_adapter = None
+        
+        if use_enhanced_modules:
+            try:
+                from src.enhanced_mood_flow_adapter import integrate_enhanced_modules, ENHANCEMENT_CONFIGS
+                # 使用完整增强配置
+                self.enhancement_adapter = integrate_enhanced_modules(self, ENHANCEMENT_CONFIGS['full'])
+                print("✅ 增强模块加载成功！")
+            except Exception as e:
+                print(f"⚠️ 增强模块加载失败，使用基础版本: {e}")
+                self.use_enhanced = False
         
         print("✅ 系统初始化完成！\n")
     

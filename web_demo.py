@@ -27,8 +27,14 @@ except ImportError as e:
     TherapySession = mood_flow_module.TherapySession
 
 class WebDemo:
-    def __init__(self):
-        self.app = MoodFlowApp()
+    def __init__(self, use_enhanced_modules: bool = False):
+        """
+        初始化Web演示界面
+        
+        Args:
+            use_enhanced_modules: 是否使用理论驱动的增强模块
+        """
+        self.app = MoodFlowApp(use_enhanced_modules=use_enhanced_modules)
         self.current_session = None
         # 设置matplotlib使用系统默认字体，避免字体警告
         import matplotlib.font_manager as fm
@@ -210,12 +216,24 @@ class WebDemo:
             else:
                 output_file_info = f"• 🎵 Music: {Path(session.music_file).name}"
             
+            # 检查是否有详细情绪信息（增强模块）
+            detailed_emotion_info = ""
+            if hasattr(self.app, 'get_detailed_emotion_info'):
+                detailed_info = self.app.get_detailed_emotion_info(session.detected_emotion)
+                if detailed_info:
+                    detailed_emotion_info = f"""
+
+🧠 Fine-grained Emotion Analysis:
+• Primary: {detailed_info['primary_emotion_cn']} ({detailed_info['primary_emotion']})
+• Confidence: {detailed_info['confidence']:.1%}
+• Intensity: {detailed_info['intensity']:.1%}"""
+            
             status = f"""
 {status_parts[0]}{status_parts[1] if len(status_parts) > 1 else ''}
 
 📊 Detected Emotion:
 • Valence: {session.detected_emotion.valence:.2f}
-• Arousal: {session.detected_emotion.arousal:.2f}
+• Arousal: {session.detected_emotion.arousal:.2f}{detailed_emotion_info}
 
 🎵 Music Therapy:
 • Total Duration: {sum(s['duration'] for s in session.iso_stages)} minutes
@@ -367,9 +385,14 @@ class WebDemo:
             traceback.print_exc()
             return None
 
-def create_interface():
-    """创建Gradio界面"""
-    demo = WebDemo()
+def create_interface(use_enhanced_modules: bool = False):
+    """
+    创建Gradio界面
+    
+    Args:
+        use_enhanced_modules: 是否使用理论驱动的增强模块
+    """
+    demo = WebDemo(use_enhanced_modules=use_enhanced_modules)
     
     with gr.Blocks(title="心境流转 - 睡眠治疗系统", theme=gr.themes.Soft()) as interface:
         gr.Markdown("""
@@ -517,29 +540,52 @@ def find_free_port(start_port=7860, max_port=7900):
 
 def main():
     """主函数"""
+    import argparse
+    
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='心境流转睡眠治疗系统Web界面')
+    parser.add_argument('--enhanced', action='store_true', 
+                       help='启用理论驱动的增强模块（细粒度情绪识别、精准音乐映射等）')
+    parser.add_argument('--port', type=int, default=None,
+                       help='指定端口号（默认自动查找7860-7900）')
+    parser.add_argument('--share', action='store_true', default=True,
+                       help='创建公共分享链接（默认开启）')
+    parser.add_argument('--no-browser', action='store_true',
+                       help='不自动打开浏览器')
+    
+    args = parser.parse_args()
+    
     print("启动Web演示界面...")
+    if args.enhanced:
+        print("📚 使用理论驱动的增强模块")
+        print("  - 细粒度情绪识别（9种情绪分类）")
+        print("  - ISO原则治疗路径规划")
+        print("  - 精准音乐特征映射")
     
     # 创建输出目录
     Path("outputs/demo_sessions").mkdir(parents=True, exist_ok=True)
     
     # 查找可用端口
-    port = find_free_port()
-    if port is None:
-        print("❌ 无法找到可用端口 (7860-7900)")
-        print("请手动终止占用端口的进程或指定其他端口")
-        return
-    
-    print(f"🚀 使用端口: {port}")
+    if args.port:
+        port = args.port
+        print(f"🚀 使用指定端口: {port}")
+    else:
+        port = find_free_port()
+        if port is None:
+            print("❌ 无法找到可用端口 (7860-7900)")
+            print("请手动终止占用端口的进程或指定其他端口")
+            return
+        print(f"🚀 使用端口: {port}")
     
     # 创建并启动界面
-    interface = create_interface()
+    interface = create_interface(use_enhanced_modules=args.enhanced)
     
     # 启动服务
     interface.launch(
         server_name="0.0.0.0",  # 允许外部访问
         server_port=port,
-        share=True,  # 创建公共链接
-        inbrowser=True,  # 自动打开浏览器
+        share=args.share,  # 创建公共链接
+        inbrowser=not args.no_browser,  # 自动打开浏览器
         show_error=True
     )
 
