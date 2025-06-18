@@ -512,6 +512,30 @@ def integrate_enhanced_modules(mood_flow_app_instance, config: Optional[Dict] = 
                             'stage_index': stage_index,
                             'therapy_goal': 'sleep_therapy'
                         }
+                        
+                        # 增强emotion对象，添加primary_emotion信息
+                        # 基于V-A坐标推断主要情绪
+                        valence = emotion.valence
+                        arousal = emotion.arousal
+                        
+                        # 根据V-A值推断主要情绪（改进版）
+                        if valence < -0.3 and arousal > 0.3:
+                            primary_emotion = 'fear'  # 焦虑/恐惧
+                        elif valence < -0.3 and arousal < -0.2:
+                            primary_emotion = 'sadness'  # 悲伤
+                        elif valence > 0.3 and arousal > 0.3:
+                            primary_emotion = 'joy'  # 喜悦
+                        elif valence > 0.2 and arousal < -0.3:
+                            primary_emotion = 'tenderness'  # 温柔/平静
+                        elif valence < -0.3:
+                            primary_emotion = 'sadness'  # 负面情绪默认为悲伤
+                        elif arousal > 0.5:
+                            primary_emotion = 'amusement'  # 高唤醒默认为愉悦
+                        else:
+                            primary_emotion = 'neutral'  # 中性
+                        
+                        # 为emotion对象添加primary_emotion属性
+                        emotion._primary_emotion = primary_emotion
                     
                     # 如果获取到了阶段信息，使用MusicGen
                     if emotion and stage_info:

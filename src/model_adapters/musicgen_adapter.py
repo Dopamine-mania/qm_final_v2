@@ -278,11 +278,20 @@ class MusicGenAdapter:
             if duration_seconds <= 30:
                 # 短序列：直接生成
                 wav = self.model.generate([prompt])
+                
+                # 检查生成结果
+                if wav is None or len(wav) == 0:
+                    raise RuntimeError("MusicGen生成失败：返回空结果")
+                
                 # 确保转换为numpy数组
                 if hasattr(wav[0], 'cpu'):
                     audio_data = wav[0].cpu().numpy().flatten()
                 else:
                     audio_data = wav[0].flatten()
+                
+                # 检查音频数据有效性
+                if len(audio_data) == 0:
+                    raise RuntimeError("MusicGen生成失败：音频数据为空")
                 
             else:
                 # 长序列：使用窗口滑动技术
@@ -301,7 +310,7 @@ class MusicGenAdapter:
                 'duration': len(audio_data) / self.sample_rate,
                 'sample_rate': self.sample_rate,
                 'generation_time': generation_time,
-                'model_used': self.model.cfg.name if hasattr(self.model, 'cfg') else 'unknown',
+                'model_used': getattr(getattr(self.model, 'cfg', None), 'name', 'musicgen_model'),
                 'bpm_target': bpm_target
             }
             
