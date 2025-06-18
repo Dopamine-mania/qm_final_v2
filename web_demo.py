@@ -395,8 +395,29 @@ def create_interface(use_enhanced_modules: bool = False):
     demo = WebDemo(use_enhanced_modules=use_enhanced_modules)
     
     with gr.Blocks(title="心境流转 - 睡眠治疗系统", theme=gr.themes.Soft()) as interface:
-        gr.Markdown("""
+        # 显示当前运行模式
+        if demo.app.use_enhanced and hasattr(demo.app, 'enhancement_adapter'):
+            enhancement_status = demo.app.get_enhancement_status() if hasattr(demo.app, 'get_enhancement_status') else {}
+            status_text = "✅ **增强模式** (理论驱动优化)"
+            
+            # 显示各模块状态
+            module_status = []
+            if enhancement_status.get('emotion_recognition', False):
+                module_status.append("🧠 细粒度情绪识别")
+            if enhancement_status.get('therapy_planning', False):
+                module_status.append("📋 ISO治疗规划")
+            if enhancement_status.get('music_mapping', False):
+                module_status.append("🎵 精准音乐映射")
+            
+            if module_status:
+                status_text += f"\n\n已启用模块：{' | '.join(module_status)}"
+        else:
+            status_text = "🔧 **基础模式**"
+        
+        gr.Markdown(f"""
         # 🌙 《心境流转》AI睡眠治疗系统
+        
+        {status_text}
         
         基于ISO三阶段原则和情绪识别技术，为您生成个性化的音视频睡眠治疗方案。
         """)

@@ -124,10 +124,18 @@ class EnhancedMoodFlowAdapter:
                     '_confidence': detailed_emotion.confidence
                 })()
                 
-                # 记录详细信息
-                logger.info(f"🎯 识别到细粒度情绪: {detailed_emotion.primary_emotion} "
-                          f"(V={detailed_emotion.valence:.2f}, A={detailed_emotion.arousal:.2f}, "
-                          f"置信度={detailed_emotion.confidence:.2f})")
+                # 记录详细信息（增强版标识）
+                print(f"\n{'='*60}")
+                print(f"🧠 [增强情绪识别 v2.0] 细粒度分析结果:")
+                print(f"{'='*60}")
+                print(f"📝 输入文本: {text[:50]}...")
+                print(f"🎯 主要情绪: {detailed_emotion.primary_emotion} ({self._emotion_to_chinese(detailed_emotion.primary_emotion)})")
+                print(f"📊 V-A坐标: Valence={detailed_emotion.valence:.2f}, Arousal={detailed_emotion.arousal:.2f}")
+                print(f"💯 置信度: {detailed_emotion.confidence:.1%}")
+                print(f"💪 强度: {detailed_emotion.intensity:.1%}")
+                if detailed_emotion.secondary_emotions:
+                    print(f"🔄 次要情绪: {detailed_emotion.secondary_emotions}")
+                print(f"{'='*60}\n")
                 
                 return emotion_state
                 
@@ -157,11 +165,21 @@ class EnhancedMoodFlowAdapter:
                 # 使用增强规划器
                 stages = self.iso_planner.plan_stages(current_emotion, target_emotion, duration)
                 
-                # 记录规划信息
-                logger.info(f"📋 生成增强治疗计划:")
+                # 记录规划信息（增强版标识）
+                print(f"\n{'='*60}")
+                print(f"📋 [增强治疗规划 v2.0] ISO原则+Gross模型:")
+                print(f"{'='*60}")
                 for i, stage in enumerate(stages):
-                    logger.info(f"  阶段{i+1}: {stage['stage'].value} - "
-                              f"{stage['duration']:.1f}分钟")
+                    print(f"  阶段{i+1}: {stage['stage'].value}")
+                    print(f"    - 时长: {stage['duration']:.1f}分钟")
+                    print(f"    - 目标情绪: V={stage['emotion'].valence:.2f}, A={stage['emotion'].arousal:.2f}")
+                    if hasattr(stage['stage'], 'value') and '同步化' in stage['stage'].value:
+                        print(f"    - 策略: 匹配用户当前情绪，建立信任")
+                    elif hasattr(stage['stage'], 'value') and '引导化' in stage['stage'].value:
+                        print(f"    - 策略: 渐进式过渡，认知重评")
+                    elif hasattr(stage['stage'], 'value') and '巩固化' in stage['stage'].value:
+                        print(f"    - 策略: 维持低唤醒，深化放松")
+                print(f"{'='*60}\n")
                 
                 return stages
                 
@@ -202,9 +220,18 @@ class EnhancedMoodFlowAdapter:
                 if stage_name:
                     music_params['stage'] = stage_name
                 
-                # 记录映射信息
-                logger.info(f"🎵 生成音乐参数: BPM={music_params.get('bpm', 'N/A')}, "
-                          f"调性={music_params.get('key', 'N/A')}")
+                # 记录映射信息（增强版标识）
+                print(f"\n{'='*60}")
+                print(f"🎵 [增强音乐映射 v2.0] 精准特征生成:")
+                print(f"{'='*60}")
+                print(f"  情绪状态: V={valence:.2f}, A={arousal:.2f}")
+                print(f"  BPM: {music_params.get('bpm', 'N/A')} (基于Arousal相关性0.88)")
+                print(f"  调性: {music_params.get('key', 'N/A')} (基于Valence相关性0.74)")
+                print(f"  乐器: {', '.join(music_params.get('instruments', [])[:3])}")
+                print(f"  节奏复杂度: {music_params.get('rhythm_pattern_complexity', 0):.2f}")
+                if 'binaural_frequency' in music_params:
+                    print(f"  双耳节拍: {music_params['binaural_frequency']}Hz (诱导脑电波同步)")
+                print(f"{'='*60}\n")
                 
                 return music_params
                 
