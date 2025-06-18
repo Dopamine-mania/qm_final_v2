@@ -11,14 +11,20 @@
 
 🚀 **一键启动体验**：
 ```bash
-bash quick_start.sh
+# 基础模式
+python web_demo.py
+
+# 理论增强模式
+python web_demo.py --enhanced
+
+# SOTA音乐生成模式（需要先安装MusicGen）
+python web_demo.py --sota
+
+# 完整增强模式
+python web_demo.py --enhanced --sota
 ```
 
-📱 **Web界面体验**：
-```bash
-python web_demo.py
-# 访问 http://localhost:7860
-```
+📱 **Web界面访问**: http://localhost:7860
 
 💻 **命令行体验**：
 ```bash
@@ -33,16 +39,25 @@ python mood_flow_app.py
 ```
 
 ### 🔄 系统处理流程
+
+#### 🔧 基础模式
 1. **情绪识别** → 检测到：焦虑状态 (V=-0.6, A=0.8)
 2. **ISO规划** → 三阶段：同步化(5分钟) → 引导化(10分钟) → 巩固化(5分钟)
 3. **音乐生成** → BPM: 112→82→52，调性：小调→中性→大调
 4. **视频生成** → 呼吸引导 → 渐变过渡 → 柔和波浪
 5. **效果评估** → 生成可视化报告
 
+#### 🚀 SOTA增强模式
+1. **细粒度情绪识别** → 9种情绪分类：fear (恐惧/焦虑)，置信度 100%
+2. **动态ISO规划** → 根据情绪距离调整：同步化(4分钟) → 引导化(12分钟) → 巩固化(4分钟)
+3. **MusicGen生成** → AI生成高质量治疗音乐，实时质量评估
+4. **质量优化** → 技术质量 + 治疗效果双重评分，自动优化
+
 ### 🎵 输出结果
 - **治疗音乐**: 20分钟三阶段音频文件 (.wav)
 - **视觉引导**: 对应的视觉模式预览图
 - **分析报告**: 情绪轨迹和治疗方案图表
+- **质量评估**: SOTA模式包含详细的质量分析和改进建议
 
 ## 📁 项目结构
 
@@ -80,13 +95,19 @@ bash quick_start.sh
 
 ### 方法2: 手动安装
 ```bash
-# 1. 安装依赖
+# 1. 安装基础依赖
 pip install gradio numpy matplotlib opencv-python torch
 
-# 2. 启动Web界面
+# 2. 启动基础模式
 python web_demo.py
 
-# 3. 在浏览器中打开 http://localhost:7860
+# 3. （可选）安装SOTA音乐生成
+python install_musicgen.py
+
+# 4. 启动完整模式
+python web_demo.py --enhanced --sota
+
+# 5. 在浏览器中打开 http://localhost:7860
 ```
 
 ### 方法3: 命令行模式
@@ -152,8 +173,10 @@ python mood_flow_app.py
 
 ## 🚀 后续发展
 
-### 近期优化
-- [ ] 集成专业AI音乐模型 (MusicGen)
+### 近期优化 ✅
+- [x] 集成专业AI音乐模型 (MusicGen) - **已完成**
+- [x] 理论驱动的增强模块 - **已完成**
+- [x] 音乐质量评估系统 - **已完成**
 - [ ] 添加语音输入功能
 - [ ] 完善视频生成 (完整MP4)
 - [ ] 移动端适配
@@ -163,6 +186,18 @@ python mood_flow_app.py
 - [ ] 医疗设备认证
 - [ ] 多语言支持
 - [ ] 商业化探索
+
+## 📚 相关文档
+
+### 核心功能
+- [增强模块详细指南](README_ENHANCED.md) - 理论驱动的优化模块
+- [MusicGen集成文档](MUSICGEN_README.md) - SOTA音乐生成详解
+- [手动安装指南](INSTALL_MANUAL.md) - 问题排查和手动安装
+
+### 测试工具
+- `compare_modes.py` - 基础版与增强版对比
+- `test_musicgen_quick.py` - MusicGen功能验证
+- `install_musicgen.py` - 自动安装MusicGen依赖
 
 ---
 

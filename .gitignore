@@ -56,13 +56,25 @@ ehthumbs.db
 Thumbs.db
 
 # Data and Models
-data/
+data/generated_content/
+data/pretrained_models/
 models/
 checkpoints/
 logs/
-outputs/
+outputs/demo_sessions/*.wav
+outputs/demo_sessions/*.mp4
+outputs/demo_sessions/*.png
+outputs/demo_sessions/*.json
+outputs/validation/
 temp/
 cache/
+
+# HuggingFace cache
+~/.cache/huggingface/
+.cache/
+
+# MusicGen model cache
+musicgen_config.py
 
 # Generated files
 *.log
