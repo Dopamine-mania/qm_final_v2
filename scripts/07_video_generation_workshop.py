@@ -8,12 +8,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Circle
-import cv2
 from datetime import datetime
 from pathlib import Path
 import json
 import warnings
 warnings.filterwarnings('ignore')
+
+# 尝试导入cv2，如果失败则使用标志
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+    print("⚠️ OpenCV (cv2) 不可用，某些视频生成功能将受限")
 
 class VisualPatternGenerator:
     """视觉模式生成器"""
@@ -207,6 +214,19 @@ class SleepVideoGenerator:
             return frames
         
         # 完整视频生成
+        if not CV2_AVAILABLE:
+            print("⚠️ OpenCV不可用，生成预览帧代替完整视频")
+            frames = []
+            preview_times = [0, duration_seconds/2, duration_seconds-0.1]
+            for t in preview_times:
+                frame = self.create_frame(t, pattern_type, color_palette)
+                frames.append(frame)
+            # 保存第一帧作为预览
+            preview_path = str(output_path).replace('.mp4', '_preview.png')
+            plt.imsave(preview_path, frames[1])
+            print(f"✅ 预览图已保存: {preview_path}")
+            return frames
+        
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(str(output_path), fourcc, self.fps, 
                             (self.width, self.height))
@@ -327,7 +347,10 @@ def run_video_workshop():
         
         for i, frame in enumerate(preview_frames):
             frame_path = preview_dir / f"frame_{i:02d}.png"
-            cv2.imwrite(str(frame_path), cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+            if CV2_AVAILABLE:
+                cv2.imwrite(str(frame_path), cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+            else:
+                plt.imsave(str(frame_path), frame)
         
         print(f"✅ 预览帧已保存: {preview_dir}")
         

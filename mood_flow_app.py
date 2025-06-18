@@ -112,6 +112,35 @@ class MoodFlowApp:
                 print(f"⚠️ 增强模块加载失败，使用基础版本: {e}")
                 self.use_enhanced = False
         
+        # 集成视频生成增强功能
+        self.video_adapter = None
+        if enhancement_config != 'disabled':
+            try:
+                from src.video_generation import integrate_video_generation
+                
+                # 根据配置决定视频质量
+                video_config = {
+                    'use_therapeutic_generator': True,
+                    'width': 1280,
+                    'height': 720,
+                    'fps': 30,
+                    'quality': 'high' if 'full' in enhancement_config else 'medium'
+                }
+                
+                self.video_adapter = integrate_video_generation(self, video_config)
+                print("🎬 治疗视频生成功能已启用")
+                
+                # 显示视频生成器信息
+                if hasattr(self, 'get_video_generator_info'):
+                    video_info = self.get_video_generator_info()
+                    if video_info['type'] == 'therapeutic':
+                        print(f"  - 分辨率: {video_info['resolution']}")
+                        print(f"  - 帧率: {video_info['fps']}fps")
+                        print(f"  - 质量: {video_info['quality']}")
+                        
+            except Exception as e:
+                print(f"⚠️ 视频生成增强加载失败: {e}")
+        
         print("✅ 系统初始化完成！\n")
     
     def safe_progress_update(self, progress_callback, value, desc=""):
