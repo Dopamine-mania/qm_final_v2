@@ -317,9 +317,11 @@ def integrate_enhanced_modules(mood_flow_app_instance, config: Optional[Dict] = 
     def enhanced_analyze(text):
         return adapter.analyze_emotion_enhanced(text, lambda t: original_analyze(t))
     
-    def enhanced_plan(current, target, duration):
+    def enhanced_plan(current_emotion, duration=20):
+        # 目标情绪：平静入睡状态（与原始实现保持一致）
+        target_emotion = type('EmotionState', (), {'valence': 0.3, 'arousal': -0.8})()
         return adapter.plan_therapy_stages_enhanced(
-            current, target, duration, mood_flow_app_instance.iso_model
+            current_emotion, target_emotion, duration, mood_flow_app_instance.iso_model
         )
     
     # 应用增强
